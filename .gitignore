@@ -1,0 +1,18 @@
+node_modules/
+artifacts/
+coverage/
+*.log
+*.zip
+
+# Local workspace metadata and private configuration.
+.wisp/
+.codex/
+.agents/
+.env
+.env.*
+!.env.example
+
+# Operating system metadata.
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f5f4ee">
+    <meta name="description" content="一张清单，一次专注。记录每一段投入，看见时间的去向。">
+    <title>VisibleTime · 看见时间</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" type="module"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="VisibleTime 首页">
+          <span class="brand-symbol" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>VisibleTime<span class="brand-caption">看见时间</span></span>
+        </a>
+        <span class="local-badge"><span class="status-dot"></span> 本地记录，安心专注</span>
+      </header>
+
+      <main>
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">MAKE ROOM FOR WHAT MATTERS</p>
+            <h1>把时间，留给重要的事<span>。</span></h1>
+            <p class="page-description">不必填满每一分钟，只需认真度过这一刻。</p>
+          </div>
+          <div class="date-block"><span id="date-weekday"></span><time id="date-label"></time></div>
+        </div>
+
+        <div id="storage-warning" class="storage-warning" role="alert" hidden></div>
+
+        <div class="workspace">
+          <section class="focus-panel" aria-labelledby="focus-title">
+            <div class="panel-topline"><h2 id="focus-title">此刻，专注一件事</h2><span id="focus-status" class="focus-status">准备开始</span></div>
+            <div class="timer-orbit" aria-hidden="true"><span class="orbit-marker"></span><span class="orbit-dot"></span></div>
+            <div class="focus-content">
+              <p id="focus-task" class="focus-task">从一件小事开始</p>
+              <div id="timer" class="timer" role="timer" aria-label="本次专注时长">00:00:00</div>
+              <p id="focus-caption" class="focus-caption">选择一项任务，让时间开始流动</p>
+              <button id="focus-action" class="focus-action" type="button"><span class="play-icon" aria-hidden="true"></span><span id="focus-action-label">添加第一项任务</span></button>
+            </div>
+            <div class="focus-footer"><span class="tiny-spark" aria-hidden="true">✳</span><span id="focus-footer-text">每一段投入，都值得被看见。</span></div>
+          </section>
+
+          <section class="tasks-panel" aria-labelledby="tasks-title">
+            <div class="section-heading"><div class="title-with-count"><h2 id="tasks-title">我的任务</h2><span id="pending-count" class="count-badge">0</span></div><span class="section-hint">一次一件，慢慢来</span></div>
+            <form id="task-form" class="task-form">
+              <label class="sr-only" for="task-input">新任务名称</label>
+              <input id="task-input" name="task" placeholder="接下来，想做点什么？" maxlength="80" autocomplete="off" required>
+              <button id="add-task" type="submit" aria-label="添加任务" title="添加任务">＋</button>
+            </form>
+            <div class="task-toolbar">
+              <div class="task-filters" role="group" aria-label="筛选任务">
+                <button class="filter active" type="button" data-filter="pending" aria-pressed="true">待办</button>
+                <button class="filter" type="button" data-filter="completed" aria-pressed="false">已完成 <span id="completed-count">0</span></button>
+                <button class="filter" type="button" data-filter="all" aria-pressed="false">全部</button>
+              </div>
+              <span class="task-duration-label">今日用时</span>
+            </div>
+            <div id="task-list" class="task-list"></div>
+            <div id="task-empty" class="task-empty">
+              <div class="empty-illustration" aria-hidden="true"><div class="paper-line"></div><div class="paper-line"></div><div class="paper-line"></div><span>✓</span></div>
+              <h3 id="empty-title">给今天一个小小的开始</h3>
+              <p id="empty-description">写下一件想做的事，剩下的交给专注。</p>
+            </div>
+            <div class="task-bottom-note"><span aria-hidden="true">↵</span> 输入后按 Enter 添加 <span class="note-separator">·</span> 点击播放开始计时</div>
+          </section>
+        </div>
+
+        <section class="today-panel" aria-labelledby="today-title">
+          <div class="section-heading today-heading"><div><p class="eyebrow">A LITTLE PROGRESS, EVERY DAY</p><h2 id="today-title">今天的时间足迹</h2></div><span class="today-note">每一秒，都算数。</span></div>
+          <div class="today-layout">
+            <div class="daily-total"><span class="metric-label">今日总投入</span><div id="total-time" class="total-time"><strong>0</strong><span>分</span></div><span id="daily-caption" class="metric-caption">今天的故事，等你写下第一笔</span></div>
+            <div class="daily-metrics"><div><span class="metric-label">专注次数</span><p><strong id="session-count">0</strong><span>次</span></p></div><div><span class="metric-label">今日完成</span><p><strong id="done-today">0</strong><span>项</span></p></div></div>
+            <div class="time-distribution"><div class="distribution-heading"><span class="metric-label">时间分配</span><span id="distribution-count">等待第一段专注</span></div><div id="distribution-list"></div></div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer"><span>少一点匆忙，多一点在场。</span><span id="save-status"><span class="status-dot"></span> 数据保存在当前浏览器</span></footer>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>
