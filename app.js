@@ -2,6 +2,7 @@ import {
   STORAGE_KEY, emptyState, parseState, activeSession, createTask,
   startTimer, stopTimer, toggleTask, dailyStats, clockText, durationText,
 } from "./core.js";
+import { attachHistory } from "./history.js";
 
 const $ = selector => document.querySelector(selector);
 const desktop = window.desktop ?? null;
@@ -13,6 +14,7 @@ let storageBlocked = false;
 let filter = "pending";
 let renderedTaskKey = "";
 let toastTimeout;
+let renderHistory = () => {};
 
 function notify(message) {
   $("#toast").textContent = message;
@@ -201,6 +203,7 @@ function render() {
   $("#done-today").textContent = stats.completedCount;
   renderTasks(stats, active);
   renderDistribution(stats);
+  renderHistory(state, now);
 }
 
 $("#task-form").addEventListener("submit", event => {
@@ -321,6 +324,7 @@ if (desktop) {
   $("#quit-app").addEventListener("click", () => desktop.quit());
   desktop.onChange(message => { readStorage(); render(); if (message) notify(message); });
 }
+renderHistory = attachHistory({ getState: () => state, commit, notify, element });
 readStorage();
 render();
 setInterval(render, 1000);

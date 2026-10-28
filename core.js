@@ -30,7 +30,12 @@ export function parseState(raw) {
   for (const session of state.sessions) {
     if (!session || typeof session.id !== "string" || !session.id || sessionIds.has(session.id) ||
         !taskIds.has(session.taskId) || !isTimestamp(session.start) ||
-        !(session.end === null || (isTimestamp(session.end) && session.end >= session.start))) {
+        !(session.end === null || (isTimestamp(session.end) && session.end >= session.start)) ||
+        !(session.source === undefined || ["timer", "manual"].includes(session.source)) ||
+        !(session.note === undefined || (typeof session.note === "string" && session.note.length <= 200)) ||
+        !(session.editedAt === undefined || isTimestamp(session.editedAt)) ||
+        !(session.originalStart === undefined || isTimestamp(session.originalStart)) ||
+        !(session.originalEnd === undefined || isTimestamp(session.originalEnd))) {
       throw new Error("Invalid session");
     }
     if (session.end === null) {

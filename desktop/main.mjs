@@ -102,7 +102,7 @@ async function ready() {
     app.exit(1);
     return;
   }
-  const allowed = new Set(["index.html", "styles.css", "app.js", "core.js", "favicon.svg"]);
+  const allowed = new Set(["index.html", "styles.css", "app.js", "core.js", "history.js", "favicon.svg"]);
   protocol.handle("visibletime", request => {
     const url = new URL(request.url);
     const name = url.pathname.slice(1);

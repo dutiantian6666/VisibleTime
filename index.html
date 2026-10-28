@@ -31,8 +31,10 @@
           <div class="date-block"><span id="date-weekday"></span><time id="date-label"></time></div>
         </div>
 
+        <nav class="view-tabs" aria-label="功能视图"><button type="button" data-view="focus" class="active" aria-pressed="true">专注</button><button type="button" data-view="history" aria-pressed="false">时间流</button></nav>
         <div id="storage-warning" class="storage-warning" role="alert" hidden></div>
 
+        <div id="focus-view">
         <div class="workspace">
           <section class="focus-panel" aria-labelledby="focus-title">
             <div class="panel-topline"><h2 id="focus-title">此刻，专注一件事</h2><span id="focus-status" class="focus-status">准备开始</span></div>
@@ -79,6 +81,14 @@
             <div class="time-distribution"><div class="distribution-heading"><span class="metric-label">时间分配</span><span id="distribution-count">等待第一段专注</span></div><div id="distribution-list"></div></div>
           </div>
         </section>
+        </div>
+        <section id="history-view" class="history-panel" hidden aria-labelledby="history-title">
+          <div class="section-heading"><div><p class="eyebrow">EVERY MOMENT HAS A PLACE</p><h2 id="history-title">你的时间，有迹可循</h2><p id="history-summary" class="history-summary"></p></div><button id="history-add" class="solid-button" type="button">＋ 补录时间</button></div>
+          <div class="history-toolbar"><div class="date-controls"><button id="history-prev" type="button" aria-label="前一天">‹</button><label class="sr-only" for="history-date">查看日期</label><input id="history-date" type="date"><button id="history-next" type="button" aria-label="后一天">›</button><button id="history-today" type="button">今天</button></div><label class="sr-only" for="history-filter">筛选事项</label><select id="history-filter"><option value="">全部事项</option></select></div>
+          <div id="history-list"></div>
+          <div id="history-empty" class="history-empty"><span aria-hidden="true">◷</span><h3>这一天，还没有时间足迹</h3><p>开始一次专注，或者补录已经做过的事。</p></div>
+          <p class="history-footnote">每次开始到暂停是一段独立记录。实际用时精确到秒，跨日记录按当天部分展示。</p>
+        </section>
       </main>
 
       <footer class="site-footer"><span>少一点匆忙，多一点在场。</span><span id="save-status"><span class="status-dot"></span> 数据保存在当前浏览器</span></footer>
@@ -93,7 +103,17 @@
         <button id="open-data" type="button" hidden><strong>打开数据文件夹</strong><span id="data-location"></span></button>
       </div>
       <div id="desktop-behavior" class="desktop-behavior" hidden><p>关闭窗口 → 留在托盘，继续计时</p><p>电脑休眠 / 明确退出 → 保存并暂停计时</p><button id="quit-app" type="button">退出软件并暂停计时</button></div>
-      <p id="app-version" class="app-version">VisibleTime 1.1.0 · 网页版</p>
+      <p id="app-version" class="app-version">VisibleTime 1.2.0 · 网页版</p>
+    </dialog>
+    <dialog id="history-editor" class="data-dialog" aria-labelledby="history-editor-title">
+      <div class="dialog-heading"><div><p class="eyebrow">MAKE THE RECORD YOURS</p><h2 id="history-editor-title">补录一段时间</h2></div><button id="history-editor-close" class="dialog-close" type="button" aria-label="关闭记录编辑">×</button></div>
+      <form id="history-editor-form" class="entry-form">
+        <label>事项<input id="history-task" list="history-task-names" required maxlength="80" placeholder="选择已有任务，或输入新事项"></label><datalist id="history-task-names"></datalist>
+        <label>开始时间<input id="history-start" type="datetime-local" step="1" required></label>
+        <label>结束时间<input id="history-end" type="datetime-local" step="1" required></label>
+        <label>备注（可选）<textarea id="history-note" maxlength="200" rows="2" placeholder="为这一段时间留下一点说明"></textarea></label>
+        <p id="history-editor-error" class="form-error" role="alert"></p><button class="solid-button" type="submit">保存时间记录</button>
+      </form>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </body>

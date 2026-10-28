@@ -2,15 +2,19 @@
 
 个人时间管理工具：任务清单、专注计时和今日统计。
 
-当前版本 **1.1.0**，新增 Windows 桌面版、独立本地数据库、系统托盘和备份恢复。时间流计划在 1.2.0 发布，日历排程计划在 1.3.0 发布。
+当前版本 **1.2.0**，提供轻量 Windows 桌面版、独立本地数据库、系统托盘、备份恢复和时间流。安装包发布门槛为 **30 MB（30,000,000 字节）以内**。日历排程计划在 1.3.0 发布。
 
 ## 下载与安装
 
-- [下载 Windows x64 安装程序](https://github.com/dutiantian6666/VisibleTime/releases/download/v1.1.0/VisibleTime-Setup-1.1.0-x64.exe)
-- [v1.1.0 版本说明与校验文件](https://github.com/dutiantian6666/VisibleTime/releases/tag/v1.1.0)
+- [下载 Windows x64 安装程序](https://github.com/dutiantian6666/VisibleTime/releases/download/v1.2.0/VisibleTime-Setup-1.2.0-x64.exe)
+- [v1.2.0 版本说明与校验文件](https://github.com/dutiantian6666/VisibleTime/releases/tag/v1.2.0)
 - [所有历史版本](https://github.com/dutiantian6666/VisibleTime/releases)
 
-运行安装程序，按向导安装。通过桌面或开始菜单的 VisibleTime 快捷方式启动，无需安装 Node.js 或单独启动服务。当前提供 Windows x64 版本，安装包未做代码签名。
+运行安装程序，按向导安装。通过桌面或开始菜单的 VisibleTime 快捷方式启动，无需安装 Node.js 或单独启动服务。当前支持 Windows 10/11 x64、.NET Framework 4.6.2 及以上版本，安装包未做代码签名。
+
+从 1.2.0 起，桌面层使用 Windows Forms + 系统共享的 Microsoft Edge WebView2 Runtime，不再随安装包携带 Electron/Chromium。已有 WebView2 时可离线安装和使用；缺少时，安装程序提示联网补装微软官方运行环境。安装包包含官方引导程序，**不包含完整的离线 WebView2 运行环境**。共享运行环境及首次运行生成的缓存不计入安装包体积。
+
+升级前从托盘退出旧版。1.1.0 的 Electron 程序可以先卸载，再安装轻量版；默认卸载保留个人数据。轻量版安装在 `VisibleTime-Light` 目录，直接使用相同的数据库，避免把旧版运行环境残留计入新版安装目录。
 
 ## 桌面版使用
 
@@ -24,6 +28,12 @@
 - 如果断电或异常终止，重新启动时将上一次计时恢复到最后心跳时刻并暂停，正常保存时可能少记最多约 5 秒；以实际最后成功保存的心跳为准。
 
 耗时根据开始和结束时间计算，不依赖页面刷新的次数。待办包含以前尚未完成的任务，右侧耗时和下方统计只显示今天。跨午夜记录按设备本地时区拆分。
+
+## 时间流
+
+切换到“时间流”，按日期查看每段记录的开始时间、结束时间、耗时及对应事项。支持事项筛选、手动补录、备注、修正和删除，起止时间精确到秒。修正保留最初的起止时间。
+
+实际记录不能位于未来，也不能与其他记录重叠。进行中的记录需要先暂停再修正或删除。跨午夜的记录在每天只计算与当天重合的部分。
 
 ## 数据保存与备份
 
@@ -59,11 +69,9 @@
 
 ## 开发与测试
 
-使用 Node.js 24.22 或兼容版本、pnpm 11.25。应用依赖已锁定在 `pnpm-lock.yaml`。
+使用 Windows 10/11 x64、系统 .NET Framework C# 编译器、Node.js 24.22 或兼容版本、pnpm 11.25。NSIS 3 可安装到 PATH；构建脚本也支持已有 electron-builder 的 NSIS 缓存。
 
 ```powershell
-pnpm install --frozen-lockfile
-pnpm exec install-electron
 pnpm desktop
 ```
 
@@ -71,19 +79,23 @@ pnpm desktop
 
 ```powershell
 node --test tests/*.test.mjs
+pnpm run test:native
 pnpm run build:win
 ```
 
-安装包输出在 `release/`，不会提交到 Git。安装程序作为对应 GitHub Release 的附件保存。
+首次构建从微软 NuGet 源下载固定版本的 WebView2 SDK，验证 SHA-256；官方 WebView2 引导程序验证微软数字签名。仅复制界面文件、必要 SDK DLL 和应用程序，不收录开发依赖。安装包超过 30,000,000 字节时构建失败。
 
-可选浏览器和 Electron 集成测试依赖 Playwright，支持通过 `PLAYWRIGHT_MODULE` 指定已有安装的绝对路径：
+安装包输出在 `release/`，不会提交到 Git。安装程序作为对应 GitHub Release 的附件保存。`desktop:electron` 和 `build:electron` 保留旧架构的开发入口，需要原有 pnpm 依赖；默认构建使用轻量版。
+
+可选浏览器和桌面集成测试依赖 Playwright，支持通过 `PLAYWRIGHT_MODULE` 指定已有安装的绝对路径：
 
 ```powershell
 node tests/browser.mjs
-node tests/desktop.mjs
+node tests/history-browser.mjs
+node tests/native-desktop.mjs
 ```
 
-桌面测试使用独立的 `desktop-test-data/` 目录，不接触真实个人数据。休眠测试模拟系统 `suspend` 事件，未实际让开发电脑休眠。通过 `VISIBLE_TIME_EXECUTABLE` 可指定打包后的 EXE 进行相同验证。
+桌面测试使用独立的 `desktop-test-data/` 目录，不接触真实个人数据。休眠测试向测试窗口发送 Windows 电源消息，未实际让开发电脑休眠。通过 `VISIBLE_TIME_EXECUTABLE` 可指定安装后的 EXE 进行相同验证。远程调试和测试控制仅在 `VISIBLE_TIME_TEST=1` 时启用。
 
 ## 版本历史
 
