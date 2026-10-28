@@ -4,6 +4,9 @@ import {
 } from "./core.js";
 
 const $ = selector => document.querySelector(selector);
+const desktop = window.desktop ?? null;
+const loadRaw = () => desktop ? desktop.load() : localStorage.getItem(STORAGE_KEY);
+const saveRaw = (raw, expected) => desktop ? desktop.save(raw, expected) : localStorage.setItem(STORAGE_KEY, raw);
 let state = emptyState();
 let storedRaw = null;
 let storageBlocked = false;
@@ -22,21 +25,22 @@ function warn(message) {
   storageBlocked = true;
   $("#storage-warning").textContent = message;
   $("#storage-warning").hidden = false;
-  $("#save-status").textContent = "本地存储需要处理";
+  $("#save-status").textContent = desktop ? "本地数据库需要处理" : "本地存储需要处理";
 }
 
 function readStorage() {
   try {
-    storedRaw = localStorage.getItem(STORAGE_KEY);
+    storedRaw = loadRaw();
     state = parseState(storedRaw);
     storageBlocked = false;
     $("#storage-warning").hidden = true;
     $("#save-status").replaceChildren();
     const dot = document.createElement("span");
     dot.className = "status-dot";
-    $("#save-status").append(dot, "数据保存在当前浏览器");
+    $("#save-status").append(dot, desktop ? "数据已保存在本机数据库" : "数据保存在当前浏览器");
   } catch {
-    warn("无法读取本地记录。为避免覆盖已有数据，已暂停写入。请保留浏览器数据，检查存储权限或备份原始记录后再处理。");
+    warn(desktop ? "无法读取本地数据库，已暂停写入。请保留数据目录和备份，检查磁盘状态后重新启动。" :
+      "无法读取本地记录。为避免覆盖已有数据，已暂停写入。请保留浏览器数据，检查存储权限或备份原始记录后再处理。");
   }
 }
 
@@ -44,21 +48,22 @@ function commit(transform, message) {
   if (storageBlocked) return notify("本地存储暂不可用，请先处理页面提示。");
   try {
     // Check the latest saved value before applying an action from another tab.
-    const latestRaw = localStorage.getItem(STORAGE_KEY);
+    const latestRaw = loadRaw();
     if (latestRaw !== storedRaw) {
       state = parseState(latestRaw);
       storedRaw = latestRaw;
     }
     const next = transform(state);
     const raw = JSON.stringify(next);
-    localStorage.setItem(STORAGE_KEY, raw);
+    saveRaw(raw, storedRaw);
     state = next;
     storedRaw = raw;
     render();
     if (message) notify(message);
     return true;
   } catch {
-    warn("保存未成功，本次操作未写入。请检查浏览器存储权限和可用空间；已有记录仍保留在浏览器中。");
+    warn(desktop ? "保存未成功，本次操作未写入。请保留数据目录，检查磁盘空间后重新启动。" :
+      "保存未成功，本次操作未写入。请检查浏览器存储权限和可用空间；已有记录仍保留在浏览器中。");
     render();
     return false;
   }
@@ -179,7 +184,7 @@ function render() {
     "选择一项任务，让时间开始流动";
   $("#focus-action-label").textContent = active ? "暂停，歇一歇" : pending.length ? "开始下一项任务" : "添加第一项任务";
   $("#focus-action > span:first-child").className = active ? "pause-icon" : "play-icon";
-  $("#focus-footer-text").textContent = active ? "关闭页面后仍会计时，离开前记得暂停。" : "每一段投入，都值得被看见。";
+  $("#focus-footer-text").textContent = active ? (desktop ? "关闭窗口后，仍会在托盘继续计时。" : "关闭页面后仍会计时，离开前记得暂停。") : "每一段投入，都值得被看见。";
   $(".timer-orbit").style.setProperty("--timer-angle", `${Math.floor(elapsed / 1000) * 6}deg`);
   $("#focus-action").disabled = storageBlocked;
   $("#add-task").disabled = storageBlocked;
@@ -268,6 +273,54 @@ window.addEventListener("storage", event => {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) { readStorage(); render(); }
 });
+
+$("#data-settings").addEventListener("click", () => $("#data-dialog").showModal());
+$("#data-dialog").addEventListener("click", event => {
+  if (event.target === $("#data-dialog")) {
+    const rect = event.target.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.target.close();
+  }
+});
+
+async function dataOperation(button, operation, success) {
+  button.disabled = true;
+  try {
+    const result = await operation();
+    if (!result?.ok) throw new Error(result?.error || "操作未成功。");
+    if (!result.canceled) notify(success);
+  } catch (error) { notify(error.message); }
+  finally { button.disabled = false; }
+}
+
+$("#export-data").addEventListener("click", event => {
+  if (desktop) return dataOperation(event.currentTarget, () => desktop.exportBackup(), "数据已导出，可以保存到其他磁盘。");
+  readStorage();
+  if (storageBlocked) return notify("数据暂不可读，请先保留并检查原始记录。");
+  const contents = { format: "visible-time-backup", formatVersion: 1, exportedAt: Date.now(), state };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(contents, null, 2)], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `VisibleTime-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  notify("数据已导出；在桌面版中选择“导入数据 / 恢复备份”。");
+});
+if (desktop) {
+  $("#storage-badge").textContent = "桌面版 · 本机保存";
+  $("#data-description").textContent = "任务和计时记录独立保存在本机数据库中，清理浏览器数据不会影响这里的记录。自动备份不代替异地备份，建议定期导出到其他磁盘。";
+  for (const id of ["import-data", "backup-data", "open-data", "desktop-behavior"]) $(`#${id}`).hidden = false;
+  try {
+    const info = desktop.info();
+    $("#data-location").textContent = info.directory;
+    $("#app-version").textContent = `VisibleTime ${info.version} · Windows 桌面版`;
+    if (info.recovered) notify("上次未正常退出，计时已恢复到最后保存时刻并暂停，请核对记录。");
+  } catch { warn("无法读取桌面版信息，请重新启动。"); }
+  $("#import-data").addEventListener("click", event => dataOperation(event.currentTarget, () => desktop.importBackup(), "数据已导入，原有记录已自动备份。"));
+  $("#backup-data").addEventListener("click", event => dataOperation(event.currentTarget, () => desktop.backupNow(), "本地备份已创建。"));
+  $("#open-data").addEventListener("click", event => dataOperation(event.currentTarget, () => desktop.openData(), "数据文件夹已打开。"));
+  $("#quit-app").addEventListener("click", () => desktop.quit());
+  desktop.onChange(message => { readStorage(); render(); if (message) notify(message); });
+}
 readStorage();
 render();
 setInterval(render, 1000);

@@ -1,10 +1,40 @@
 {
   "name": "visible-time",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "A personal desktop task timer with durable local storage.",
+  "author": "dutiantian6666",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
+  "main": "desktop/main.mjs",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test tests/core.test.mjs"
+    "desktop": "electron .",
+    "test": "node --test tests/*.test.mjs",
+    "build:win": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "45.1.0",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.dutiantian6666.visibletime",
+    "productName": "VisibleTime",
+    "artifactName": "VisibleTime-Setup-${version}-${arch}.${ext}",
+    "directories": { "output": "release" },
+    "files": [
+      "index.html", "styles.css", "app.js", "core.js", "favicon.svg",
+      "desktop/**", "package.json"
+    ],
+    "win": { "target": "nsis", "icon": "desktop/assets/icon.ico", "signExecutable": false },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

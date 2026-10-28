@@ -1,6 +1,12 @@
 node_modules/
+.pnpm-store/
 artifacts/
 coverage/
+release/
+desktop-test-data/
+*.db
+*.db-shm
+*.db-wal
 *.log
 *.zip
 

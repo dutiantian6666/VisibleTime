@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#f5f4ee">
     <meta name="description" content="一张清单，一次专注。记录每一段投入，看见时间的去向。">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'">
     <title>VisibleTime · 看见时间</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
@@ -13,11 +14,11 @@
   <body>
     <div class="app-shell">
       <header class="site-header">
-        <a class="brand" href="/" aria-label="VisibleTime 首页">
+        <a class="brand" href="/index.html" aria-label="VisibleTime 首页">
           <span class="brand-symbol" aria-hidden="true"><span></span><span></span><span></span></span>
           <span>VisibleTime<span class="brand-caption">看见时间</span></span>
         </a>
-        <span class="local-badge"><span class="status-dot"></span> 本地记录，安心专注</span>
+        <div class="header-actions"><button id="data-settings" class="data-settings" type="button">数据与备份</button><span class="local-badge"><span class="status-dot"></span> <span id="storage-badge">本地记录，安心专注</span></span></div>
       </header>
 
       <main>
@@ -82,6 +83,18 @@
 
       <footer class="site-footer"><span>少一点匆忙，多一点在场。</span><span id="save-status"><span class="status-dot"></span> 数据保存在当前浏览器</span></footer>
     </div>
+    <dialog id="data-dialog" class="data-dialog" aria-labelledby="data-title">
+      <form method="dialog" class="dialog-heading"><div><p class="eyebrow">YOUR TIME, SAFELY KEPT</p><h2 id="data-title">数据与备份</h2></div><button class="dialog-close" aria-label="关闭数据与备份">×</button></form>
+      <p id="data-description" class="data-description">网页版的数据保存在当前浏览器。导出后，可在桌面版中导入。</p>
+      <div class="data-actions">
+        <button id="export-data" type="button"><strong>导出全部数据</strong><span>保存为 JSON 文件，用于迁移或备份</span></button>
+        <button id="import-data" type="button" hidden><strong>导入数据 / 恢复备份</strong><span>支持网页版导出文件；替换前自动备份</span></button>
+        <button id="backup-data" type="button" hidden><strong>立即创建本地备份</strong><span>自动备份也会每天生成，保存在数据目录</span></button>
+        <button id="open-data" type="button" hidden><strong>打开数据文件夹</strong><span id="data-location"></span></button>
+      </div>
+      <div id="desktop-behavior" class="desktop-behavior" hidden><p>关闭窗口 → 留在托盘，继续计时</p><p>电脑休眠 / 明确退出 → 保存并暂停计时</p><button id="quit-app" type="button">退出软件并暂停计时</button></div>
+      <p id="app-version" class="app-version">VisibleTime 1.1.0 · 网页版</p>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </body>
 </html>

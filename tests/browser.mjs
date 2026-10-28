@@ -82,6 +82,15 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
   await page.locator("#focus-action").click();
 
+  await page.locator("#data-settings").click();
+  const downloaded = page.waitForEvent("download");
+  await page.locator("#export-data").click();
+  const download = await downloaded;
+  const backup = JSON.parse(await (await import("node:fs/promises")).readFile(await download.path(), "utf8"));
+  assert.equal(backup.format, "visible-time-backup");
+  assert.deepEqual(backup.state, await getState());
+  await page.locator('[aria-label="关闭数据与备份"]').click();
+
   const beforeFailure = await getState();
   await page.evaluate(() => {
     Storage.prototype.setItem = () => { throw new DOMException("Storage unavailable", "QuotaExceededError"); };
