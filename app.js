@@ -3,6 +3,7 @@ import {
   startTimer, stopTimer, toggleTask, dailyStats, clockText, durationText,
 } from "./core.js";
 import { attachHistory } from "./history.js";
+import { attachCalendar } from "./calendar.js";
 
 const $ = selector => document.querySelector(selector);
 const desktop = window.desktop ?? null;
@@ -15,6 +16,7 @@ let filter = "pending";
 let renderedTaskKey = "";
 let toastTimeout;
 let renderHistory = () => {};
+let renderCalendar = () => {};
 
 function notify(message) {
   $("#toast").textContent = message;
@@ -204,6 +206,7 @@ function render() {
   renderTasks(stats, active);
   renderDistribution(stats);
   renderHistory(state, now);
+  renderCalendar(state, now);
 }
 
 $("#task-form").addEventListener("submit", event => {
@@ -325,6 +328,16 @@ if (desktop) {
   desktop.onChange(message => { readStorage(); render(); if (message) notify(message); });
 }
 renderHistory = attachHistory({ getState: () => state, commit, notify, element });
+renderCalendar = attachCalendar({ getState: () => state, commit, notify, element });
+document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => {
+  const view = button.dataset.view;
+  for (const name of ["focus", "history", "calendar"]) $(`#${name}-view`).hidden = view !== name;
+  document.querySelectorAll("[data-view]").forEach(item => {
+    item.classList.toggle("active", item === button);
+    item.setAttribute("aria-pressed", String(item === button));
+  });
+  render();
+}));
 readStorage();
 render();
 setInterval(render, 1000);

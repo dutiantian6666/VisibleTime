@@ -25,6 +25,18 @@ export function parseState(raw) {
     }
     taskIds.add(task.id);
   }
+  const planIds = new Set();
+  if (state.plans !== undefined && !Array.isArray(state.plans)) throw new Error("Invalid plans");
+  for (const plan of state.plans ?? []) {
+    if (!plan || typeof plan.id !== "string" || !plan.id || planIds.has(plan.id) ||
+        !taskIds.has(plan.taskId) || !isTimestamp(plan.start) || !isTimestamp(plan.end) ||
+        plan.end <= plan.start || plan.start % 60000 || plan.end % 60000 ||
+        typeof plan.completed !== "boolean" || !isTimestamp(plan.createdAt) ||
+        !(plan.note === undefined || (typeof plan.note === "string" && plan.note.length <= 200))) {
+      throw new Error("Invalid plan");
+    }
+    planIds.add(plan.id);
+  }
   const sessionIds = new Set();
   let running = 0;
   for (const session of state.sessions) {
@@ -35,7 +47,9 @@ export function parseState(raw) {
         !(session.note === undefined || (typeof session.note === "string" && session.note.length <= 200)) ||
         !(session.editedAt === undefined || isTimestamp(session.editedAt)) ||
         !(session.originalStart === undefined || isTimestamp(session.originalStart)) ||
-        !(session.originalEnd === undefined || isTimestamp(session.originalEnd))) {
+        !(session.originalEnd === undefined || isTimestamp(session.originalEnd)) ||
+        !(session.planId === undefined || (planIds.has(session.planId) &&
+          state.plans.find(plan => plan.id === session.planId).taskId === session.taskId))) {
       throw new Error("Invalid session");
     }
     if (session.end === null) {

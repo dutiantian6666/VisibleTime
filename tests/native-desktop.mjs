@@ -7,6 +7,7 @@ import path from "node:path";
 import net from "node:net";
 import { emptyState, createTask, startTimer, activeSession } from "../core.js";
 import { Store, backupEnvelope } from "../desktop/store.mjs";
+import { localInput } from "../history.js";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
@@ -84,6 +85,18 @@ try {
   assert.ok(Math.abs(paused.sessions.at(-1).end - suspendAt) < 2000);
   await test("resume");
   assert.equal(activeSession(JSON.parse(await raw())), null);
+  await page.locator('[data-view="calendar"]').click();
+  await page.locator("#calendar-add").click();
+  await page.locator("#plan-task").fill("验证原生日历计划");
+  const planStart = Math.floor(Date.now() / 60000) * 60000 + 86400000;
+  await page.locator("#plan-start").fill(localInput(planStart).slice(0, 16));
+  await page.locator("#plan-end").fill(localInput(planStart + 12 * 60000).slice(0, 16));
+  await page.locator('#plan-editor-form [type="submit"]').click();
+  assert.equal(await page.locator("#plan-editor").isVisible(), false);
+  assert.equal(JSON.parse(await raw()).plans.length, 1);
+  await page.locator('[data-plan-action="start"]').click();
+  assert.ok(activeSession(JSON.parse(await raw())).planId);
+  await page.locator("#focus-action").click();
   await page.locator('[data-view="history"]').click();
   assert.ok(await page.locator(".history-row").count() >= 1);
   await page.locator('[data-view="focus"]').click();
@@ -93,7 +106,8 @@ try {
   browser = null;
   const stored = new Store(path.join(directory, "data"));
   assert.equal(activeSession(stored.load()), null);
-  assert.equal(stored.load().tasks.length, 2);
+  assert.equal(stored.load().tasks.length, 3);
+  assert.equal(stored.load().plans.length, 1);
   stored.close();
 
   await launch();
@@ -106,7 +120,8 @@ try {
   await page.locator("#data-settings").click();
   await page.locator("#export-data").click();
   await page.locator("#toast", { hasText: "数据已导出" }).waitFor();
-  assert.equal(JSON.parse(readFileSync(exportFile)).state.tasks.length, 2);
+  assert.equal(JSON.parse(readFileSync(exportFile)).state.tasks.length, 3);
+  assert.equal(JSON.parse(readFileSync(exportFile)).state.plans.length, 1);
   const before = await raw();
   await page.locator("#import-data").click();
   await page.waitForFunction(() => !document.querySelector("#import-data").disabled);
@@ -125,7 +140,7 @@ try {
   await page.evaluate(() => { void window.desktop.quit(); });
   await waitExit();
   browser = null;
-  console.log("Native WebView2 checks passed: Electron database compatibility, browser-data independence, hidden-window timing, suspend, exit, restart, history, export, canceled/confirmed import, and backups.");
+  console.log("Native WebView2 checks passed: Electron database compatibility, browser-data independence, hidden-window timing, suspend, exit, restart, calendar-linked timing, history, export, canceled/confirmed import, and backups.");
 } finally {
   if (child && child.exitCode === null) {
     child.kill();

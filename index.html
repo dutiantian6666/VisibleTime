@@ -31,7 +31,7 @@
           <div class="date-block"><span id="date-weekday"></span><time id="date-label"></time></div>
         </div>
 
-        <nav class="view-tabs" aria-label="功能视图"><button type="button" data-view="focus" class="active" aria-pressed="true">专注</button><button type="button" data-view="history" aria-pressed="false">时间流</button></nav>
+        <nav class="view-tabs" aria-label="功能视图"><button type="button" data-view="focus" class="active" aria-pressed="true">专注</button><button type="button" data-view="history" aria-pressed="false">时间流</button><button type="button" data-view="calendar" aria-pressed="false">日历</button></nav>
         <div id="storage-warning" class="storage-warning" role="alert" hidden></div>
 
         <div id="focus-view">
@@ -89,6 +89,18 @@
           <div id="history-empty" class="history-empty"><span aria-hidden="true">◷</span><h3>这一天，还没有时间足迹</h3><p>开始一次专注，或者补录已经做过的事。</p></div>
           <p class="history-footnote">每次开始到暂停是一段独立记录。实际用时精确到秒，跨日记录按当天部分展示。</p>
         </section>
+        <section id="calendar-view" class="calendar-panel" hidden aria-labelledby="calendar-title">
+          <div class="section-heading"><div><p class="eyebrow">A LITTLE SPACE FOR THE DAYS AHEAD</p><h2 id="calendar-title">为重要的事，留出时间</h2><p class="history-summary">计划精确到分钟，实际记录精确到秒。给每一天留一点余地。</p></div><button id="calendar-add" class="solid-button" type="button">＋ 添加计划</button></div>
+          <div class="calendar-toolbar"><div class="date-controls"><button id="calendar-prev" type="button" aria-label="上个月">‹</button><h3 id="calendar-month"></h3><button id="calendar-next" type="button" aria-label="下个月">›</button><button id="calendar-today" type="button">今天</button></div><label class="sr-only" for="calendar-date">选择日历日期</label><input id="calendar-date" type="date"></div>
+          <div class="calendar-weekdays" aria-hidden="true"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+          <div id="calendar-grid" class="calendar-grid" role="group" aria-label="按日期查看计划"></div>
+          <div class="calendar-day-heading"><h3 id="calendar-day-title"></h3><p id="calendar-summary"></p></div>
+          <div class="calendar-agenda">
+            <section aria-labelledby="calendar-planned-title"><h3 id="calendar-planned-title"><span class="legend-mark planned"></span>计划安排</h3><div id="calendar-plans"></div><p id="calendar-plans-empty" class="agenda-empty">这一天还没有计划。选好日期，添加一件想做的事。</p></section>
+            <section aria-labelledby="calendar-actual-title"><h3 id="calendar-actual-title"><span class="legend-mark actual"></span>实际足迹</h3><div id="calendar-actual"></div><p id="calendar-actual-empty" class="agenda-empty">这一天还没有实际记录。开始计时后，时间会在这里留下足迹。</p></section>
+          </div>
+          <p class="history-footnote">计划可以重叠，冲突会单独标记。点击“开始计时”才记录真实投入；删除计划会保留已经发生的实际记录。</p>
+        </section>
       </main>
 
       <footer class="site-footer"><span>少一点匆忙，多一点在场。</span><span id="save-status"><span class="status-dot"></span> 数据保存在当前浏览器</span></footer>
@@ -103,7 +115,17 @@
         <button id="open-data" type="button" hidden><strong>打开数据文件夹</strong><span id="data-location"></span></button>
       </div>
       <div id="desktop-behavior" class="desktop-behavior" hidden><p>关闭窗口 → 留在托盘，继续计时</p><p>电脑休眠 / 明确退出 → 保存并暂停计时</p><button id="quit-app" type="button">退出软件并暂停计时</button></div>
-      <p id="app-version" class="app-version">VisibleTime 1.2.0 · 网页版</p>
+      <p id="app-version" class="app-version">VisibleTime 1.3.0 · 网页版</p>
+    </dialog>
+    <dialog id="plan-editor" class="data-dialog" aria-labelledby="plan-editor-title">
+      <div class="dialog-heading"><div><p class="eyebrow">MAKE TIME FOR WHAT MATTERS</p><h2 id="plan-editor-title">给时间留一个位置</h2></div><button id="plan-editor-close" class="dialog-close" type="button" aria-label="关闭计划编辑">×</button></div>
+      <form id="plan-editor-form" class="entry-form">
+        <label>计划事项<input id="plan-task" list="history-task-names" required maxlength="80" placeholder="选择已有任务，或输入新事项"></label>
+        <label>计划开始<input id="plan-start" type="datetime-local" step="60" required></label>
+        <label>计划结束<input id="plan-end" type="datetime-local" step="60" required></label>
+        <label>备注（可选）<textarea id="plan-note" maxlength="200" rows="2" placeholder="一件事，一段专属时间"></textarea></label>
+        <p id="plan-editor-error" class="form-error" role="alert"></p><button class="solid-button" type="submit">保存日历计划</button>
+      </form>
     </dialog>
     <dialog id="history-editor" class="data-dialog" aria-labelledby="history-editor-title">
       <div class="dialog-heading"><div><p class="eyebrow">MAKE THE RECORD YOURS</p><h2 id="history-editor-title">补录一段时间</h2></div><button id="history-editor-close" class="dialog-close" type="button" aria-label="关闭记录编辑">×</button></div>

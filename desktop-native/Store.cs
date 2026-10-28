@@ -50,6 +50,20 @@ namespace VisibleTime {
                 if ((bool)task["completed"] != (completedAt != null)) throw new InvalidDataException("Invalid completion.");
                 tasks.Add(id, task);
             }
+            var plans = new Dictionary<string, Dictionary<string, object>>();
+            if (state.ContainsKey("plans")) foreach (var item in Items(state, "plans")) {
+                var plan = Object(item);
+                var id = Get(plan, "id") as string;
+                var taskId = Get(plan, "taskId") as string;
+                var start = Number(Get(plan, "start"));
+                var end = Number(Get(plan, "end"));
+                if (String.IsNullOrEmpty(id) || plans.ContainsKey(id) || taskId == null || !tasks.ContainsKey(taskId) ||
+                    end <= start || start % 60000 != 0 || end % 60000 != 0 || !(Get(plan, "completed") is bool))
+                    throw new InvalidDataException("Invalid plan.");
+                Number(Get(plan, "createdAt"));
+                if (plan.ContainsKey("note") && (!(plan["note"] is string) || ((string)plan["note"]).Length > 200)) throw new InvalidDataException("Invalid plan note.");
+                plans.Add(id, plan);
+            }
             var ids = new HashSet<string>();
             var running = 0;
             foreach (var item in Items(state, "sessions")) {
@@ -64,6 +78,10 @@ namespace VisibleTime {
                 if (end == null && (++running > 1 || (bool)tasks[taskId]["completed"])) throw new InvalidDataException("Invalid active session.");
                 if (session.ContainsKey("source") && !new object[] { "timer", "manual" }.Contains(session["source"])) throw new InvalidDataException("Invalid source.");
                 if (session.ContainsKey("note") && (!(session["note"] is string) || ((string)session["note"]).Length > 200)) throw new InvalidDataException("Invalid note.");
+                if (session.ContainsKey("planId")) {
+                    var planId = session["planId"] as string;
+                    if (planId == null || !plans.ContainsKey(planId) || !object.Equals(plans[planId]["taskId"], taskId)) throw new InvalidDataException("Invalid plan link.");
+                }
                 foreach (var key in new[] { "editedAt", "originalStart", "originalEnd" }) if (session.ContainsKey(key)) Number(session[key]);
             }
             return state;

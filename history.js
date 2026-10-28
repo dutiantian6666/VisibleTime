@@ -47,6 +47,7 @@ export function saveHistory(state, { id, name, start, end, note = "" }, now = Da
     originalStart: existing.originalStart ?? existing.start,
     originalEnd: existing.originalEnd ?? existing.end,
   } : { id: crypto.randomUUID(), taskId: task.id, start, end, note, source: "manual" };
+  if (existing && task.id !== existing.taskId) delete session.planId;
   return { ...next, sessions: existing ? next.sessions.map(item => item.id === id ? session : item) : [...next.sessions, session] };
 }
 
@@ -81,7 +82,7 @@ export function attachHistory({ getState, commit, notify, element }) {
     const entries = historyForDay(state, dayTime(), filter, now);
     $("#history-summary").textContent = `${entries.length} 段记录 · 合计 ${durationText(entries.reduce((sum, entry) => sum + entry.duration, 0))}`;
     $("#history-empty").hidden = entries.length > 0;
-    const key = JSON.stringify([state.sessions, state.tasks, selectedDay, filter]);
+    const key = JSON.stringify([state.sessions, state.tasks, selectedDay, filter, entries.map(entry => entry.id)]);
     if (key !== rowsKey) {
       rowsKey = key;
       const fragment = document.createDocumentFragment();
@@ -136,16 +137,6 @@ export function attachHistory({ getState, commit, notify, element }) {
     $("#history-editor").showModal();
   }
 
-  document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => {
-    const view = button.dataset.view;
-    $("#focus-view").hidden = view !== "focus";
-    $("#history-view").hidden = view !== "history";
-    document.querySelectorAll("[data-view]").forEach(item => {
-      item.classList.toggle("active", item === button);
-      item.setAttribute("aria-pressed", String(item === button));
-    });
-    render(getState());
-  }));
   $("#history-date").addEventListener("change", event => {
     if (!event.target.value) return;
     selectedDay = event.target.value;

@@ -2,12 +2,12 @@
 
 个人时间管理工具：任务清单、专注计时和今日统计。
 
-当前版本 **1.2.0**，提供轻量 Windows 桌面版、独立本地数据库、系统托盘、备份恢复和时间流。安装包发布门槛为 **30 MB（30,000,000 字节）以内**。日历排程计划在 1.3.0 发布。
+当前版本 **1.3.0**，提供轻量 Windows 桌面版、独立本地数据库、系统托盘、备份恢复、时间流和分钟级日历。安装包约 **2.09 MB**，发布门槛为 **30 MB（30,000,000 字节）以内**。
 
 ## 下载与安装
 
-- [下载 Windows x64 安装程序](https://github.com/dutiantian6666/VisibleTime/releases/download/v1.2.0/VisibleTime-Setup-1.2.0-x64.exe)
-- [v1.2.0 版本说明与校验文件](https://github.com/dutiantian6666/VisibleTime/releases/tag/v1.2.0)
+- [下载 Windows x64 安装程序](https://github.com/dutiantian6666/VisibleTime/releases/download/v1.3.0/VisibleTime-Setup-1.3.0-x64.exe)
+- [v1.3.0 版本说明与校验文件](https://github.com/dutiantian6666/VisibleTime/releases/tag/v1.3.0)
 - [所有历史版本](https://github.com/dutiantian6666/VisibleTime/releases)
 
 运行安装程序，按向导安装。通过桌面或开始菜单的 VisibleTime 快捷方式启动，无需安装 Node.js 或单独启动服务。当前支持 Windows 10/11 x64、.NET Framework 4.6.2 及以上版本，安装包未做代码签名。
@@ -34,6 +34,16 @@
 切换到“时间流”，按日期查看每段记录的开始时间、结束时间、耗时及对应事项。支持事项筛选、手动补录、备注、修正和删除，起止时间精确到秒。修正保留最初的起止时间。
 
 实际记录不能位于未来，也不能与其他记录重叠。进行中的记录需要先暂停再修正或删除。跨午夜的记录在每天只计算与当天重合的部分。
+
+## 日历与计划
+
+切换到“日历”，按月浏览并选择日期，点击“添加计划”设置事项、起止时间和备注。时间可精确到 **1 分钟**，例如 `09:07—09:19`，不要求按 15 或 30 分钟对齐。计划可以跨日，也可以重叠，重叠计划会显示提示。
+
+选中日期后，可同时查看“计划安排”和“实际足迹”。点击计划中的“开始计时”，从点击时刻开始记录真实投入，计划中显示该计划的累计实际耗时；不会把计划时间自动当作已完成时间。开始已有完成任务的计划时会恢复该任务。
+
+“标记完成”只改变这项计划的状态；如果该计划正在计时，会先暂停。删除计划保留实际记录，解除它与计划的关联。时间流中将实际记录改到其他事项时，也会解除原计划关联，避免错误累计。日历计划和关联信息会随 SQLite、JSON 导出及备份一起保存。
+
+当前没有重复计划、提醒、拖拽排程或云同步，全部数据仍在本机。
 
 ## 数据保存与备份
 
@@ -92,10 +102,13 @@ pnpm run build:win
 ```powershell
 node tests/browser.mjs
 node tests/history-browser.mjs
+node tests/calendar-browser.mjs
 node tests/native-desktop.mjs
 ```
 
 桌面测试使用独立的 `desktop-test-data/` 目录，不接触真实个人数据。休眠测试向测试窗口发送 Windows 电源消息，未实际让开发电脑休眠。通过 `VISIBLE_TIME_EXECUTABLE` 可指定安装后的 EXE 进行相同验证。远程调试和测试控制仅在 `VISIBLE_TIME_TEST=1` 时启用。
+
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-native-install.ps1` 在独立目录中安装，测试安装后的程序，再卸载并验证无关文件保留。安装测试使用 `/TEST`，不修改快捷方式和安装注册项。
 
 ## 版本历史
 

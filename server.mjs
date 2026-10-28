@@ -10,6 +10,7 @@ const routes = new Map([
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
   ["/core.js", ["core.js", "text/javascript; charset=utf-8"]],
   ["/history.js", ["history.js", "text/javascript; charset=utf-8"]],
+  ["/calendar.js", ["calendar.js", "text/javascript; charset=utf-8"]],
   ["/favicon.svg", ["favicon.svg", "image/svg+xml"]],
 ]);
 
