@@ -35,7 +35,7 @@ try {
         $body = @{
             tag_name = "v$Version"; target_commitish = $commit
             name = "VisibleTime v$Version"
-            body = (Get-Content -LiteralPath (Join-Path $projectRoot "docs/RELEASE-v$Version.md") -Raw -Encoding utf8)
+            body = [IO.File]::ReadAllText((Join-Path $projectRoot "docs/RELEASE-v$Version.md"), [Text.Encoding]::UTF8)
             draft = $true; prerelease = $false
         } | ConvertTo-Json
         $release = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$repository/releases" -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body))
