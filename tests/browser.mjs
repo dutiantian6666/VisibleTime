@@ -22,6 +22,7 @@ const addTask = async name => {
 
 try {
   await page.clock.install({ time: new Date("2026-10-28T09:00:00+08:00") });
+  await page.clock.pauseAt(new Date("2026-10-28T09:01:00+08:00"));
   await page.goto(baseURL);
   await page.locator("#task-empty").waitFor({ state: "visible" });
   assert.equal(await page.title(), "VisibleTime · 看见时间");
@@ -32,6 +33,9 @@ try {
   await addTask("<img src=x onerror=alert(1)>");
   assert.equal(await page.locator(".task-row").count(), 3);
   assert.equal(await page.locator(".task-row img").count(), 0);
+  assert.equal(await page.locator('[aria-label="完成任务：<img src=x onerror=alert(1)>"]').isDisabled(), true);
+  await page.locator('[aria-label="开始计时：<img src=x onerror=alert(1)>"]').click();
+  await page.clock.fastForward(61000);
   await page.locator('[aria-label="完成任务：<img src=x onerror=alert(1)>"]').click();
   await page.locator('[aria-label="开始计时：完成时间管理工具初版"]').click();
   await page.clock.fastForward(65000);
@@ -42,7 +46,7 @@ try {
 
   await page.locator('[aria-label="开始计时：读完一章书"]').click();
   let saved = await getState();
-  assert.equal(saved.sessions.length, 2);
+  assert.equal(saved.sessions.length, 3);
   assert.ok(saved.sessions[0].end !== null);
   assert.equal(saved.sessions.filter(session => session.end === null).length, 1);
   await page.clock.fastForward(35000);
@@ -54,12 +58,14 @@ try {
   assert.equal(await page.locator("#daily-caption").textContent(), pausedTotal);
   await page.locator('[aria-label="开始计时：读完一章书"]').click();
   await page.clock.fastForward(25000);
+  assert.equal(await page.locator('[aria-label="完成任务：读完一章书"]').isDisabled(), true);
+  await page.clock.fastForward(1000);
   await page.locator('[aria-label="完成任务：读完一章书"]').click();
   assert.equal(await page.locator("#done-today").textContent(), "2");
   assert.equal((await getState()).sessions.filter(session => session.end === null).length, 0);
   await page.locator('[data-filter="completed"]').click();
   assert.equal(await page.locator(".task-row").count(), 2);
-  assert.equal(await page.locator(".task-row", { hasText: "读完一章书" }).locator(".task-time").textContent(), "00:01:00");
+  assert.equal(await page.locator(".task-row", { hasText: "读完一章书" }).locator(".task-time").textContent(), "00:01:01");
   await page.locator('[aria-label="恢复任务：读完一章书"]').click();
   assert.equal(await page.locator("#done-today").textContent(), "1");
   await page.locator('[data-filter="pending"]').click();
@@ -82,6 +88,21 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
   await page.locator("#focus-action").click();
 
+  await addTask("删除测试");
+  await page.locator('[aria-label="开始计时：删除测试"]').click();
+  await page.clock.fastForward(10000);
+  page.once("dialog", dialog => dialog.dismiss());
+  await page.locator('[aria-label="删除任务：删除测试"]').click();
+  assert.equal(await page.locator('[aria-label="删除任务：删除测试"]').count(), 1);
+  const sessionsBeforeDelete = (await getState()).sessions.length;
+  page.once("dialog", dialog => dialog.accept());
+  await page.locator('[aria-label="删除任务：删除测试"]').click();
+  assert.equal(await page.locator('[aria-label="删除任务：删除测试"]').count(), 0);
+  assert.equal((await getState()).sessions.length, sessionsBeforeDelete);
+  assert.ok((await getState()).sessions.every(session => session.end !== null));
+  await page.reload();
+  assert.equal(await page.locator('[aria-label="删除任务：删除测试"]').count(), 0);
+
   await page.locator("#data-settings").click();
   const downloaded = page.waitForEvent("download");
   await page.locator("#export-data").click();
@@ -89,6 +110,10 @@ try {
   const backup = JSON.parse(await (await import("node:fs/promises")).readFile(await download.path(), "utf8"));
   assert.equal(backup.format, "visible-time-backup");
   assert.deepEqual(backup.state, await getState());
+  assert.equal(await page.locator("#toast").evaluate(node => {
+    const rect = node.getBoundingClientRect();
+    return node.matches(":popover-open") && document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === node;
+  }), true);
   await page.locator('[aria-label="关闭数据与备份"]').click();
 
   const beforeFailure = await getState();

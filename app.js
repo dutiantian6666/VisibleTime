@@ -1,6 +1,6 @@
 import {
   STORAGE_KEY, emptyState, parseState, activeSession, createTask,
-  startTimer, stopTimer, toggleTask, dailyStats, clockText, durationText,
+  startTimer, stopTimer, toggleTask, deleteTask, taskTotals, dailyStats, clockText, durationText,
 } from "./core.js";
 import { attachHistory } from "./history.js";
 import { attachCalendar } from "./calendar.js";
@@ -18,12 +18,28 @@ let toastTimeout;
 let renderHistory = () => {};
 let renderCalendar = () => {};
 
-function notify(message) {
-  $("#toast").textContent = message;
-  $("#toast").hidden = false;
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => { $("#toast").hidden = true; }, 3500);
+function presentToast() {
+  const toast = $("#toast");
+  toast.hidePopover?.();
+  // Keep the notification inside the active modal's non-inert subtree.
+  const dialogs = [...document.querySelectorAll("dialog[open]")];
+  (dialogs.at(-1) ?? document.body).append(toast);
+  toast.showPopover?.();
 }
+
+function notify(message) {
+  const toast = $("#toast");
+  toast.textContent = message;
+  toast.hidden = false;
+  // Popovers share the browser top layer with modal dialogs and their backdrops.
+  presentToast();
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => { toast.hidePopover?.(); toast.hidden = true; }, 3500);
+}
+
+for (const name of ["close", "toggle"]) document.addEventListener(name, event => {
+  if (event.target instanceof HTMLDialogElement && !$("#toast").hidden) presentToast();
+}, true);
 
 function warn(message) {
   storageBlocked = true;
@@ -81,8 +97,8 @@ function element(tag, className, text) {
 }
 
 function renderTasks(stats, active) {
-  const visibleTasks = state.tasks.filter(task =>
-    filter === "all" || (filter === "completed" ? task.completed : !task.completed));
+  const visibleTasks = state.tasks.filter(task => !task.deleted &&
+    (filter === "all" || (filter === "completed" ? task.completed : !task.completed)));
   const taskKey = JSON.stringify([visibleTasks, active?.taskId, filter, storageBlocked]);
   if (taskKey !== renderedTaskKey) {
     renderedTaskKey = taskKey;
@@ -114,6 +130,13 @@ function renderTasks(stats, active) {
         toggle.append(icon);
         row.append(toggle);
       }
+      const remove = element("button", "task-delete", "×");
+      remove.type = "button";
+      remove.dataset.action = "delete";
+      remove.setAttribute("aria-label", `删除任务：${task.name}`);
+      remove.title = "删除任务，保留时间记录";
+      remove.disabled = storageBlocked;
+      row.append(remove);
       fragment.append(row);
     }
     $("#task-list").replaceChildren(fragment);
@@ -121,9 +144,17 @@ function renderTasks(stats, active) {
   document.querySelectorAll("[data-time-for]").forEach(node => {
     node.textContent = clockText(stats.byTask.get(node.dataset.timeFor) ?? 0);
   });
+  const totals = taskTotals(state);
+  for (const row of $("#task-list").children) {
+    const task = visibleTasks.find(task => task.id === row.dataset.taskId);
+    const check = row.querySelector(".task-check");
+    const eligible = task.completed || (totals.get(task.id) ?? 0) > 60000;
+    check.disabled = storageBlocked || !eligible;
+    check.title = eligible ? (task.completed ? "恢复任务" : "标记已完成") : "累计实际耗时须大于 1 分钟才能完成";
+  }
   $("#task-empty").hidden = visibleTasks.length > 0;
   const emptyText = filter === "completed" ? ["完成一件，就少一份牵挂", "完成的任务会出现在这里，投入的时间也会留下。"] :
-    state.tasks.length > 0 ? ["手头的事情，已经告一段落", "歇一歇，或者再写下一件想做的小事。"] :
+    state.tasks.some(task => !task.deleted) ? ["手头的事情，已经告一段落", "歇一歇，或者再写下一件想做的小事。"] :
       ["给今天一个小小的开始", "写下一件想做的事，剩下的交给专注。"];
   $("#empty-title").textContent = emptyText[0];
   $("#empty-description").textContent = emptyText[1];
@@ -172,12 +203,12 @@ function render() {
   const stats = dailyStats(state, now);
   const active = activeSession(state);
   const currentTask = state.tasks.find(task => task.id === active?.taskId);
-  const pending = state.tasks.filter(task => !task.completed);
+  const pending = state.tasks.filter(task => !task.deleted && !task.completed);
   $("#date-weekday").textContent = new Intl.DateTimeFormat("zh-CN", { weekday: "long" }).format(date);
   $("#date-label").textContent = `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日`;
   $("#date-label").dateTime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   $("#pending-count").textContent = pending.length;
-  $("#completed-count").textContent = state.tasks.length - pending.length;
+  $("#completed-count").textContent = state.tasks.filter(task => !task.deleted && task.completed).length;
   $("#focus-task").textContent = currentTask?.name ?? (pending.length ? "准备好，就从现在开始" : "从一件小事开始");
   $("#focus-task").title = currentTask?.name ?? "";
   const elapsed = active ? Math.max(0, now - active.start) : 0;
@@ -229,9 +260,9 @@ $("#task-form").addEventListener("submit", event => {
 $("#focus-action").addEventListener("click", () => {
   if (activeSession(state)) {
     commit(current => stopTimer(current), "已暂停，这段投入已经记下。");
-  } else if (state.tasks.some(task => !task.completed)) {
+  } else if (state.tasks.some(task => !task.deleted && !task.completed)) {
     commit(current => {
-      const next = current.tasks.find(task => !task.completed);
+      const next = current.tasks.find(task => !task.deleted && !task.completed);
       return next ? startTimer(current, next.id) : current;
     });
   } else {
@@ -250,7 +281,18 @@ $("#task-list").addEventListener("click", event => {
   } else if (action === "stop") {
     commit(current => activeSession(current)?.taskId === taskId ? stopTimer(current) : current, "已暂停，时间已记录。");
   } else if (action === "complete") {
-    commit(current => toggleTask(current, taskId));
+    commit(current => {
+      const task = current.tasks.find(task => task.id === taskId);
+      if (!task || task.deleted) return current;
+      if (!task.completed && (taskTotals(current).get(taskId) ?? 0) <= 60000) {
+        notify("累计实际耗时须大于 1 分钟才能完成任务。");
+        return current;
+      }
+      return toggleTask(current, taskId);
+    });
+  } else if (action === "delete" && confirm("删除这项任务？正在进行的计时会暂停，已有时间记录和日历计划会保留。")) {
+    commit(current => current.tasks.some(task => task.id === taskId && !task.deleted) ? deleteTask(current, taskId) : current,
+      "任务已删除，已有时间记录已保留。");
   }
 });
 

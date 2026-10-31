@@ -31,6 +31,10 @@ let page;
 const test = (action, value = null) => page.evaluate(([action, value]) =>
   JSON.parse(chrome.webview.hostObjects.sync.bridge.Call("test", JSON.stringify([action, value]))).value, [action, value]);
 const raw = () => page.evaluate(() => window.desktop.load());
+const assertToastOnTop = async () => assert.equal(await page.locator("#toast").evaluate(node => {
+  const rect = node.getBoundingClientRect();
+  return node.matches(":popover-open") && document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) === node;
+}), true);
 const waitExit = () => new Promise((resolve, reject) => {
   if (child.exitCode !== null) return resolve();
   const timer = setTimeout(() => reject(new Error("Native app did not exit.")), 15000);
@@ -120,6 +124,7 @@ try {
   await page.locator("#data-settings").click();
   await page.locator("#export-data").click();
   await page.locator("#toast", { hasText: "数据已导出" }).waitFor();
+  await assertToastOnTop();
   assert.equal(JSON.parse(readFileSync(exportFile)).state.tasks.length, 3);
   assert.equal(JSON.parse(readFileSync(exportFile)).state.plans.length, 1);
   const before = await raw();
@@ -129,12 +134,27 @@ try {
   await test("dialogs", { exportFile, importFile, confirm: true });
   await page.locator("#import-data").click();
   await page.locator("#toast", { hasText: "数据已导入" }).waitFor();
+  await assertToastOnTop();
   assert.equal(JSON.parse(await raw()).sessions[0].end, importAt);
   assert.equal(JSON.parse(await raw()).tasks[0].name, "迁移的记录");
   assert.ok(readdirSync(path.join(directory, "data", "backups")).some(name => name.includes("before-import")));
   await page.locator("#backup-data").click();
   await page.locator("#toast", { hasText: "本地备份已创建" }).waitFor();
+  await assertToastOnTop();
+  await page.screenshot({ path: path.join(root, "artifacts", `native-toast-v${version}.png`), fullPage: true });
   await page.locator('[aria-label="关闭数据与备份"]').click();
+  await page.locator('[aria-label="开始计时：迁移的记录"]').click();
+  page.once("dialog", dialog => dialog.accept());
+  await page.locator('[aria-label="删除任务：迁移的记录"]').click();
+  await page.waitForFunction(() => JSON.parse(window.desktop.load()).tasks[0].deleted === true);
+  const deleted = JSON.parse(await raw());
+  assert.equal(activeSession(deleted), null);
+  assert.equal(deleted.sessions.length, 2);
+  await page.reload();
+  assert.equal(await page.locator(".task-row").count(), 0);
+  await page.locator('[data-view="history"]').click();
+  assert.ok(await page.locator(".history-row").count() >= 1);
+  await page.locator('[data-view="focus"]').click();
   await page.screenshot({ path: path.join(root, "artifacts", `native-v${version}.png`), fullPage: true });
   assert.deepEqual(errors, []);
   await page.evaluate(() => { void window.desktop.quit(); });

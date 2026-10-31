@@ -18,7 +18,7 @@ export function parseState(raw) {
   for (const task of state.tasks) {
     if (!task || typeof task.id !== "string" || !task.id || taskIds.has(task.id) ||
         typeof task.name !== "string" || !task.name.trim() || task.name.length > 80 ||
-        typeof task.completed !== "boolean" || !isTimestamp(task.createdAt) ||
+        typeof task.completed !== "boolean" || !(task.deleted === undefined || typeof task.deleted === "boolean") || !isTimestamp(task.createdAt) ||
         !(task.completedAt === null || isTimestamp(task.completedAt)) ||
         task.completed !== (task.completedAt !== null)) {
       throw new Error("Invalid task");
@@ -54,7 +54,8 @@ export function parseState(raw) {
     }
     if (session.end === null) {
       running += 1;
-      if (state.tasks.find(task => task.id === session.taskId).completed) throw new Error("Completed active task");
+      const task = state.tasks.find(task => task.id === session.taskId);
+      if (task.completed || task.deleted) throw new Error("Unavailable active task");
     }
     sessionIds.add(session.id);
   }
@@ -85,7 +86,7 @@ export function stopTimer(state, now = Date.now()) {
 
 export function startTimer(state, taskId, now = Date.now(), id = crypto.randomUUID()) {
   const task = state.tasks.find(item => item.id === taskId);
-  if (!task || task.completed) throw new Error("Task unavailable");
+  if (!task || task.completed || task.deleted) throw new Error("Task unavailable");
   if (activeSession(state)?.taskId === taskId) return state;
   const stopped = stopTimer(state, now);
   return { ...stopped, sessions: [...stopped.sessions, { id, taskId, start: now, end: null }] };
@@ -93,13 +94,32 @@ export function startTimer(state, taskId, now = Date.now(), id = crypto.randomUU
 
 export function toggleTask(state, taskId, now = Date.now()) {
   const task = state.tasks.find(item => item.id === taskId);
-  if (!task) throw new Error("Task unavailable");
+  if (!task || task.deleted) throw new Error("Task unavailable");
+  if (!task.completed && (taskTotals(state, now).get(taskId) ?? 0) <= 60000) {
+    throw new Error("累计实际耗时须大于 1 分钟才能完成任务。");
+  }
   const next = activeSession(state)?.taskId === taskId ? stopTimer(state, now) : state;
   return {
     ...next,
     tasks: next.tasks.map(item => item.id === taskId ?
       { ...item, completed: !item.completed, completedAt: item.completed ? null : now } : item),
   };
+}
+
+export function taskTotals(state, now = Date.now()) {
+  const totals = new Map();
+  for (const session of state.sessions) {
+    const elapsed = Math.max(0, Math.min(session.end ?? now, now) - session.start);
+    totals.set(session.taskId, (totals.get(session.taskId) ?? 0) + elapsed);
+  }
+  return totals;
+}
+
+export function deleteTask(state, taskId, now = Date.now()) {
+  if (!state.tasks.some(task => task.id === taskId && !task.deleted)) throw new Error("Task unavailable");
+  const next = activeSession(state)?.taskId === taskId ? stopTimer(state, now) : state;
+  // Keep the task as a reference for historical sessions and calendar plans.
+  return { ...next, tasks: next.tasks.map(task => task.id === taskId ? { ...task, deleted: true } : task) };
 }
 
 export function dayBounds(now = Date.now()) {
@@ -127,7 +147,7 @@ export function dailyStats(state, now = Date.now()) {
     byTask,
     total: [...byTask.values()].reduce((sum, value) => sum + value, 0),
     sessionCount,
-    completedCount: state.tasks.filter(task => task.completed &&
+    completedCount: state.tasks.filter(task => !task.deleted && task.completed &&
       task.completedAt >= bounds.start && task.completedAt < bounds.end).length,
   };
 }

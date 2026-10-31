@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyState, parseState, dailyStats, startTimer } from "../core.js";
-import { saveHistory, deleteHistory, historyForDay, localDate, localInput } from "../history.js";
+import { saveHistory, deleteHistory, historyForDay, localDate, localInput, minuteDuration, timelineInterval } from "../history.js";
 
 const now = new Date(2026, 9, 28, 14).getTime();
 const start = new Date(2026, 9, 28, 9, 7, 23).getTime();
@@ -16,6 +16,7 @@ test("manual entries preserve exact seconds and create or reuse tasks", () => {
   assert.equal(dailyStats(state, now).total, end - start + 60000);
   assert.deepEqual(parseState(JSON.stringify(state)), state);
 });
+
 
 test("edits update statistics and retain the first original interval", () => {
   let state = saveHistory(emptyState(), input, now);
@@ -63,7 +64,15 @@ test("deleting a record keeps the task and updates totals", () => {
   assert.equal(dailyStats(next, now).total, 0);
 });
 
-test("local input formatting preserves calendar dates and seconds", () => {
+test("minute inputs and labels omit seconds while timeline positions reflect wall clock minutes", () => {
   assert.equal(localDate(start), "2026-10-28");
-  assert.equal(localInput(start), "2026-10-28T09:07:23");
+  assert.equal(localInput(start), "2026-10-28T09:07");
+  assert.equal(minuteDuration(end - start), "12 分钟");
+  assert.equal(minuteDuration(1000), "不足 1 分钟");
+  assert.equal(minuteDuration(0), "0 分钟");
+  assert.equal(minuteDuration(3660000), "1 小时 1 分钟");
+  assert.deepEqual(timelineInterval({ visibleStart: start, visibleEnd: end }, now), { top: 547, height: 12 });
+  assert.deepEqual(timelineInterval({ visibleStart: start, visibleEnd: start + 60000 }, now), { top: 547, height: 1 });
+  const midnight = new Date(2026, 9, 29).getTime();
+  assert.deepEqual(timelineInterval({ visibleStart: midnight - 60000, visibleEnd: midnight }, now), { top: 1439, height: 1 });
 });

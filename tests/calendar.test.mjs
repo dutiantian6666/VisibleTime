@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { emptyState, parseState, activeSession, stopTimer, toggleTask, dailyStats } from "../core.js";
+import { emptyState, parseState, activeSession, stopTimer, toggleTask, deleteTask, dailyStats } from "../core.js";
 import { saveHistory } from "../history.js";
 import { savePlan, deletePlan, startPlan, togglePlan, plansForDay, actualForPlan, monthDates } from "../calendar.js";
 
@@ -51,11 +51,13 @@ test("plans for the same task get separate linked sessions", () => {
 test("completing a running plan pauses it, and restarting reopens its task", () => {
   let state = savePlan(emptyState(), input, now);
   const id = state.plans[0].id;
-  state = togglePlan(startPlan(state, id, now), id, now + 1000);
+  state = togglePlan(startPlan(state, id, now), id, now + 61000);
   assert.equal(activeSession(state), null);
   assert.equal(state.plans[0].completed, true);
-  state = toggleTask(state, state.tasks[0].id, now + 2000);
-  state = startPlan(state, id, now + 3000);
+  state = toggleTask(state, state.tasks[0].id, now + 62000);
+  state = deleteTask(state, state.tasks[0].id, now + 63000);
+  state = startPlan(state, id, now + 64000);
+  assert.equal(state.tasks[0].deleted, false);
   assert.equal(state.tasks[0].completed, false);
   assert.equal(state.plans[0].completed, false);
 });

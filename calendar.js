@@ -10,7 +10,7 @@ export function savePlan(state, { id, name, start, end, note = "" }, now = Date.
   const existing = (state.plans ?? []).find(plan => plan.id === id);
   if (id && !existing) throw new Error("计划已不存在，请刷新后重试。");
   let next = state;
-  let task = state.tasks.find(task => task.name === name);
+  let task = state.tasks.find(task => task.name === name && (!task.deleted || task.id === existing?.taskId));
   if (!task) {
     next = createTask(state, name, now);
     task = next.tasks.at(-1);
@@ -43,6 +43,7 @@ export function startPlan(state, id, now = Date.now()) {
   if (!plan) throw new Error("计划已不存在。");
   if (activeSession(state)?.planId === id) return state;
   let next = stopTimer(state, now);
+  next = { ...next, tasks: next.tasks.map(task => task.id === plan.taskId && task.deleted ? { ...task, deleted: false } : task) };
   if (next.tasks.find(task => task.id === plan.taskId)?.completed) next = toggleTask(next, plan.taskId, now);
   next = startTimer(next, plan.taskId, now);
   return {

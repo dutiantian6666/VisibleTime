@@ -1,4 +1,4 @@
-import { createTask, dayBounds, durationText } from "./core.js";
+import { createTask, dayBounds } from "./core.js";
 
 export function localDate(value = Date.now()) {
   const date = new Date(value);
@@ -7,7 +7,20 @@ export function localDate(value = Date.now()) {
 
 export function localInput(value = Date.now()) {
   const date = new Date(value);
-  return `${localDate(value)}T${[date.getHours(), date.getMinutes(), date.getSeconds()].map(n => String(n).padStart(2, "0")).join(":")}`;
+  return `${localDate(value)}T${[date.getHours(), date.getMinutes()].map(n => String(n).padStart(2, "0")).join(":")}`;
+}
+
+export function minuteDuration(milliseconds) {
+  const minutes = Math.floor(Math.max(0, milliseconds) / 60000);
+  if (minutes < 1) return milliseconds > 0 ? "不足 1 分钟" : "0 分钟";
+  return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟`;
+}
+
+export function timelineInterval(entry, date) {
+  const bounds = dayBounds(date);
+  const position = value => value >= bounds.end ? 1440 : new Date(value).getHours() * 60 + new Date(value).getMinutes();
+  const top = position(entry.visibleStart);
+  return { top, height: Math.min(1440 - top, Math.max(1, position(entry.visibleEnd) - top)) };
 }
 
 export function historyForDay(state, date, taskId = "", now = Date.now()) {
@@ -37,7 +50,7 @@ export function saveHistory(state, { id, name, start, end, note = "" }, now = Da
   if (state.sessions.some(session => session.id !== id &&
     session.start < end && (session.end ?? now) > start)) throw new Error("这段时间与已有记录重叠，请核对起止时间。");
   let next = state;
-  let task = state.tasks.find(item => item.name === name);
+  let task = state.tasks.find(item => item.name === name && (!item.deleted || item.id === existing?.taskId));
   if (!task) {
     next = createTask(state, name, now);
     task = next.tasks.at(-1);
@@ -63,9 +76,10 @@ export function attachHistory({ getState, commit, notify, element }) {
   let followToday = true;
   let filter = "";
   let rowsKey = "";
+  let layoutKey = "";
   let tasksKey = "";
   let editId = null;
-  const timeText = value => new Date(value).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const timeText = value => new Date(value).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
   const dayTime = () => new Date(`${selectedDay}T12:00:00`).getTime();
 
   function render(state, now = Date.now()) {
@@ -77,16 +91,32 @@ export function attachHistory({ getState, commit, notify, element }) {
       state.tasks.forEach(task => options.push(new Option(task.name, task.id)));
       $("#history-filter").replaceChildren(...options);
       $("#history-filter").value = filter;
-      $("#history-task-names").replaceChildren(...state.tasks.map(task => new Option(task.name, task.name)));
+      $("#history-task-names").replaceChildren(...state.tasks.filter(task => !task.deleted).map(task => new Option(task.name, task.name)));
     }
-    const entries = historyForDay(state, dayTime(), filter, now);
-    $("#history-summary").textContent = `${entries.length} 段记录 · 合计 ${durationText(entries.reduce((sum, entry) => sum + entry.duration, 0))}`;
+    if ($("#history-view").hidden) return;
+    const entries = historyForDay(state, dayTime(), filter, now).reverse();
+    $("#history-summary").textContent = `${entries.length} 段记录 · 合计 ${minuteDuration(entries.reduce((sum, entry) => sum + entry.duration, 0))}`;
     $("#history-empty").hidden = entries.length > 0;
     const key = JSON.stringify([state.sessions, state.tasks, selectedDay, filter, entries.map(entry => entry.id)]);
     if (key !== rowsKey) {
       rowsKey = key;
       const fragment = document.createDocumentFragment();
+      const axis = element("div", "history-axis");
+      axis.setAttribute("aria-hidden", "true");
+      for (let hour = 0; hour <= 24; hour += 2) {
+        const tick = element("span", "history-tick", `${String(hour).padStart(2, "0")}:00`);
+        tick.style.top = `${hour * 60}px`;
+        axis.append(tick);
+      }
+      fragment.append(axis);
       for (const entry of entries) {
+        const segment = element("div", `history-segment${entry.end === null ? " is-running" : ""}`);
+        segment.dataset.segment = entry.id;
+        segment.title = `${entry.name} · ${timeText(entry.visibleStart)}—${entry.visibleEnd === dayBounds(dayTime()).end ? "24:00" : timeText(entry.visibleEnd)}`;
+        segment.setAttribute("aria-hidden", "true");
+        const connector = element("div", "history-connector");
+        connector.dataset.connector = entry.id;
+        connector.setAttribute("aria-hidden", "true");
         const row = element("article", "history-row");
         row.dataset.session = entry.id;
         const time = element("div", "history-time");
@@ -99,7 +129,7 @@ export function attachHistory({ getState, commit, notify, element }) {
         if (entry.note) info.append(element("p", "", entry.note));
         if (entry.crossesDay) info.append(element("span", "history-tag", "跨日记录 · 本页只计算当天部分"));
         if (entry.editedAt) info.append(element("span", "history-tag", "已修正"));
-        const duration = element("strong", "history-duration", durationText(entry.duration));
+        const duration = element("strong", "history-duration", minuteDuration(entry.duration));
         duration.dataset.historyDuration = entry.id;
         const actions = element("div", "history-actions");
         for (const [action, label] of [["edit", "修正"], ["delete", "删除"]]) {
@@ -110,17 +140,37 @@ export function attachHistory({ getState, commit, notify, element }) {
           actions.append(button);
         }
         row.append(time, info, duration, actions);
-        fragment.append(row);
+        fragment.append(connector, segment, row);
       }
       $("#history-list").replaceChildren(fragment);
     }
+    const nextLayout = JSON.stringify([key, $("#history-list").clientWidth,
+      entries.map(entry => [Math.floor(entry.visibleEnd / 60000), Math.floor(entry.duration / 60000)])]);
+    if (layoutKey === nextLayout) return;
+    layoutKey = nextLayout;
+    const rows = new Map([...$("#history-list").querySelectorAll("[data-session]")].map(node => [node.dataset.session, node]));
+    const segments = new Map([...$("#history-list").querySelectorAll("[data-segment]")].map(node => [node.dataset.segment, node]));
+    const connectors = new Map([...$("#history-list").querySelectorAll("[data-connector]")].map(node => [node.dataset.connector, node]));
+    let cardBottom = 0;
     for (const entry of entries) {
-      const row = [...$("#history-list").children].find(item => item.dataset.session === entry.id);
+      const row = rows.get(entry.id);
       if (row) {
-        row.querySelector("[data-history-range]").textContent = `${timeText(entry.visibleStart)}—${entry.end === null ? "现在" : timeText(entry.visibleEnd)}`;
-        row.querySelector("[data-history-duration]").textContent = durationText(entry.duration);
+        row.querySelector("[data-history-range]").textContent = `${timeText(entry.visibleStart)}—${entry.end === null ? "现在" : entry.visibleEnd === dayBounds(dayTime()).end ? "24:00" : timeText(entry.visibleEnd)}`;
+        row.querySelector("[data-history-duration]").textContent = minuteDuration(entry.duration);
+        const { top, height } = timelineInterval(entry, dayTime());
+        const cardTop = Math.max(top, cardBottom);
+        row.style.top = `${cardTop}px`;
+        cardBottom = cardTop + row.offsetHeight + 10;
+        const segment = segments.get(entry.id);
+        segment.style.top = `${top}px`;
+        segment.style.height = `${height}px`;
+        segment.title = `${entry.name} · ${row.querySelector("[data-history-range]").textContent}`;
+        const connector = connectors.get(entry.id);
+        connector.style.top = `${top}px`;
+        connector.style.height = `${cardTop - top + 1}px`;
       }
     }
+    $("#history-list").style.height = `${Math.max(1440, cardBottom)}px`;
   }
 
   function openEditor(id = null) {
@@ -171,11 +221,17 @@ export function attachHistory({ getState, commit, notify, element }) {
       start: new Date($("#history-start").value).getTime(), end: new Date($("#history-end").value).getTime(),
       note: $("#history-note").value,
     };
+    // A note-only edit must not round away the seconds in older timer records.
+    const existing = getState().sessions.find(session => session.id === editId);
+    if (existing) for (const field of ["start", "end"]) {
+      if ($(`#history-${field}`).value === localInput(existing[field])) input[field] = existing[field];
+    }
     try {
       // Validate before commit so a rejected edit does not disable durable storage.
       saveHistory(getState(), input);
       if (commit(state => saveHistory(state, input), "时间记录已保存。")) $("#history-editor").close();
     } catch (error) { $("#history-editor-error").textContent = error.message; }
   });
+  window.addEventListener("resize", () => render(getState()));
   return render;
 }

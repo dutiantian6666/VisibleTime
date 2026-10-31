@@ -45,6 +45,7 @@ namespace VisibleTime {
                 if (String.IsNullOrEmpty(id) || tasks.ContainsKey(id) || String.IsNullOrWhiteSpace(name) || name.Length > 80 ||
                     !(Get(task, "completed") is bool) || !task.ContainsKey("completedAt")) throw new InvalidDataException("Invalid task.");
                 Number(Get(task, "createdAt"));
+                if (task.ContainsKey("deleted") && !(task["deleted"] is bool)) throw new InvalidDataException("Invalid task deletion.");
                 var completedAt = Get(task, "completedAt");
                 if (completedAt != null) Number(completedAt);
                 if ((bool)task["completed"] != (completedAt != null)) throw new InvalidDataException("Invalid completion.");
@@ -75,7 +76,7 @@ namespace VisibleTime {
                 var start = Number(Get(session, "start"));
                 var end = Get(session, "end");
                 if (end != null && Number(end) < start) throw new InvalidDataException("Invalid interval.");
-                if (end == null && (++running > 1 || (bool)tasks[taskId]["completed"])) throw new InvalidDataException("Invalid active session.");
+                if (end == null && (++running > 1 || (bool)tasks[taskId]["completed"] || object.Equals(Get(tasks[taskId], "deleted"), true))) throw new InvalidDataException("Invalid active session.");
                 if (session.ContainsKey("source") && !new object[] { "timer", "manual" }.Contains(session["source"])) throw new InvalidDataException("Invalid source.");
                 if (session.ContainsKey("note") && (!(session["note"] is string) || ((string)session["note"]).Length > 200)) throw new InvalidDataException("Invalid note.");
                 if (session.ContainsKey("planId")) {

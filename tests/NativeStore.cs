@@ -59,6 +59,18 @@ internal static class NativeStoreTests {
                     store.Daily(); store.Daily();
                     Assert(Directory.GetFiles(store.Backups, "*-daily-*.json").Length == 1, "Duplicate daily backup.");
                 });
+                Check("Deleted task references survive SQLite and backup without permitting active timers", delegate {
+                    var deleted = raw.Replace("\"completed\":false", "\"completed\":false,\"deleted\":true");
+                    store.Save(deleted, store.Raw());
+                    var file = Path.Combine(directory, "deleted-task-export.json");
+                    store.Export(file);
+                    var restored = Store.ReadBackup(file);
+                    Assert(object.Equals(Json.Object(Json.Items(restored, "tasks")[0])["deleted"], true), "Deletion flag was lost.");
+                    Assert(Json.Items(restored, "sessions").Length == 1, "Historical record was lost.");
+                    Reject(delegate { store.Save(deleted.Replace("\"end\":2000", "\"end\":null"), store.Raw()); });
+                    Reject(delegate { store.Save(deleted.Replace("\"deleted\":true", "\"deleted\":1"), store.Raw()); });
+                    store.Save(raw, store.Raw());
+                });
                 Check("Calendar plans and linked sessions survive SQLite and export", delegate {
                     var state = Json.State(raw);
                     state["plans"] = new object[] { new System.Collections.Generic.Dictionary<string, object> {

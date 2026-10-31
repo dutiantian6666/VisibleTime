@@ -15,14 +15,20 @@ try {
   await page.locator('[data-view="history"]').click();
   await page.locator("#history-add").click();
   await page.locator("#history-task").fill("阅读与思考");
-  await page.locator("#history-start").fill("2026-10-28T09:07:23");
-  await page.locator("#history-end").fill("2026-10-28T09:19:41");
+  await page.locator("#history-start").fill("2026-10-28T09:07");
+  await page.locator("#history-end").fill("2026-10-28T09:19");
   await page.locator("#history-note").fill("读完一章，留一点时间整理笔记。");
   await page.locator('#history-editor-form [type="submit"]').click();
   assert.equal(await page.locator(".history-row").count(), 1);
-  assert.match(await page.locator("#history-summary").textContent(), /12 分 18 秒/);
+  await page.waitForFunction(() => document.querySelector("#toast").parentElement === document.body);
+  assert.equal(await page.locator("#toast").evaluate(node => node.matches(":popover-open")), true);
+  assert.match(await page.locator("#history-summary").textContent(), /12 分钟/);
+  assert.equal(await page.locator(".history-segment").evaluate(node => node.style.top), "547px");
+  assert.equal(await page.locator(".history-segment").evaluate(node => node.style.height), "12px");
+  assert.match(await page.locator("[data-history-range]").textContent(), /^09:07—09:19$/);
+  assert.equal(await page.locator("#history-start").getAttribute("step"), "60");
   await page.locator('[data-history-action="edit"]').click();
-  await page.locator("#history-end").fill("2026-10-28T09:21:41");
+  await page.locator("#history-end").fill("2026-10-28T09:21");
   await page.locator('#history-editor-form [type="submit"]').click();
   assert.match(await page.locator(".history-tag").textContent(), /已修正/);
   await page.locator("#history-add").click();
@@ -45,12 +51,52 @@ try {
   await page.locator('[data-view="history"]').click();
   assert.equal(await page.locator(".history-row").count(), 2);
   await mkdir(new URL("../artifacts/", import.meta.url), { recursive: true });
-  await page.screenshot({ path: fileURLToPath(new URL("../artifacts/history-v1.2.0.png", import.meta.url)), fullPage: true, animations: "disabled" });
+  const assertLayout = async () => {
+    const boxes = await page.locator(".history-row").evaluateAll(nodes => nodes.map(node => {
+      const rect = node.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    }));
+    for (let i = 1; i < boxes.length; i++) assert.ok(boxes[i].top >= boxes[i - 1].bottom + 9);
+  };
+  await assertLayout();
+  assert.equal(await page.locator(".history-tick").last().textContent(), "24:00");
+  await page.screenshot({ path: fileURLToPath(new URL("../artifacts/history-v1.4.0.png", import.meta.url)), fullPage: true, animations: "disabled" });
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await assertLayout();
+  await page.screenshot({ path: fileURLToPath(new URL("../artifacts/history-mobile-v1.4.0.png", import.meta.url)), fullPage: true, animations: "disabled" });
   page.once("dialog", dialog => dialog.accept());
   await page.locator('[data-history-action="delete"]').first().click();
   assert.equal(await page.locator(".history-row").count(), 1);
   assert.deepEqual(errors, []);
-  console.log("History UI checks passed: second precision, manual entry, correction, overlap rejection, date navigation, reload, mobile layout, and deletion.");
+  // Older second-level records remain exact when only their note is changed.
+  await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("visible-time.v1"));
+    state.sessions[0].start += 23000;
+    state.sessions[0].end += 41000;
+    localStorage.setItem("visible-time.v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.locator('[data-view="history"]').click();
+  const beforeNote = await page.evaluate(() => JSON.parse(localStorage.getItem("visible-time.v1")).sessions[0]);
+  await page.locator('[data-history-action="edit"]').click();
+  await page.locator("#history-note").fill("仅修改备注，保留原有秒数");
+  await page.locator('#history-editor-form [type="submit"]').click();
+  const afterNote = await page.evaluate(() => JSON.parse(localStorage.getItem("visible-time.v1")).sessions[0]);
+  assert.equal(afterNote.start, beforeNote.start);
+  assert.equal(afterNote.end, beforeNote.end);
+  await page.clock.pauseAt(new Date("2026-10-28T14:10:23+08:00"));
+  await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("visible-time.v1"));
+    state.sessions.push({ id: "minute-rollover", taskId: state.tasks[0].id, start: Date.now(), end: null });
+    localStorage.setItem("visible-time.v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.locator('[data-view="history"]').click();
+  await page.clock.fastForward(37000);
+  assert.equal(await page.locator('[data-session="minute-rollover"] .history-duration').textContent(), "不足 1 分钟");
+  await page.clock.fastForward(24000);
+  assert.equal(await page.locator('[data-session="minute-rollover"] .history-duration').textContent(), "1 分钟");
+  assert.deepEqual(errors, []);
+  console.log("History UI checks passed: minute precision, proportional day axis, non-overlapping cards, legacy second preservation, manual entry, correction, overlap rejection, navigation, reload, mobile layout, and deletion.");
 } finally { await context.close(); await browser.close(); }

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   emptyState, parseState, activeSession, createTask, startTimer,
-  stopTimer, toggleTask, dailyStats, dayBounds, clockText,
+  stopTimer, toggleTask, deleteTask, taskTotals, dailyStats, dayBounds, clockText,
 } from "../core.js";
 
 const base = new Date(2026, 9, 28, 9, 0, 0).getTime();
@@ -40,15 +40,47 @@ test("serialization restores a running timer without losing time", () => {
 
 test("completion stops the active session and reopening preserves history", () => {
   let state = startTimer(seed(), "a", base, "s1");
-  state = toggleTask(state, "a", base + minute);
+  state = toggleTask(state, "a", base + minute + 1);
   assert.equal(activeSession(state), null);
   assert.equal(dailyStats(state, base + 2 * minute).completedCount, 1);
-  assert.equal(dailyStats(state, base + 2 * minute).total, minute);
+  assert.equal(dailyStats(state, base + 2 * minute).total, minute + 1);
   assert.throws(() => startTimer(state, "a", base + 3 * minute));
   state = toggleTask(state, "a", base + 4 * minute);
   assert.equal(state.tasks[0].completedAt, null);
   assert.equal(dailyStats(state, base + 5 * minute).completedCount, 0);
   assert.equal(state.sessions.length, 1);
+});
+
+test("completion requires strictly more than one minute, including previous days and running time", () => {
+  let state = startTimer(seed(), "a", base - 86400000, "s1");
+  assert.throws(() => toggleTask(seed(), "a", base), /大于 1 分钟/);
+  assert.throws(() => toggleTask(state, "a", base - 86400000 + minute - 1));
+  assert.throws(() => toggleTask(state, "a", base - 86400000 + minute));
+  state = stopTimer(state, base - 86400000 + minute);
+  state = startTimer(state, "a", base, "s2");
+  assert.equal(taskTotals(state, base + 1).get("a"), minute + 1);
+  state = toggleTask(state, "a", base + 1);
+  assert.equal(state.tasks[0].completed, true);
+  assert.equal(activeSession(state), null);
+  // Restoring an older completed task does not require a duration.
+  state = { ...state, sessions: [] };
+  assert.equal(toggleTask(state, "a", base + 2).tasks[0].completed, false);
+});
+
+test("deleting a running task pauses it and preserves history, plans and statistics across serialization", () => {
+  let state = startTimer(seed(), "a", base, "s1");
+  state.plans = [{ id: "p1", taskId: "a", start: base, end: base + minute, completed: false, createdAt: base }];
+  state.sessions[0].planId = "p1";
+  state = deleteTask(state, "a", base + minute);
+  assert.equal(state.tasks[0].deleted, true);
+  assert.equal(activeSession(state), null);
+  assert.equal(state.sessions[0].planId, "p1");
+  assert.equal(state.plans.length, 1);
+  assert.equal(dailyStats(state, base + minute).total, minute);
+  assert.deepEqual(parseState(JSON.stringify(state)), state);
+  assert.throws(() => startTimer(state, "a", base + 2 * minute));
+  assert.throws(() => toggleTask(state, "a", base + 2 * minute));
+  assert.throws(() => parseState(JSON.stringify({ ...state, tasks: [{ ...state.tasks[0], deleted: "yes" }] })));
 });
 
 test("cross-midnight sessions contribute only their local-day intersection", () => {

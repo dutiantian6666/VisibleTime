@@ -9,7 +9,8 @@ if (git status --porcelain) { throw 'Commit all release sources before publishin
 $commit = git rev-parse "v$Version^{}"
 if ($LASTEXITCODE -ne 0) { throw 'Release tag does not exist.' }
 $installer = Join-Path $projectRoot "release/VisibleTime-Setup-$Version-x64.exe"
-$checksums = Join-Path $projectRoot 'release/SHA256SUMS.txt'
+$checksums = Join-Path $projectRoot "release/SHA256SUMS-$Version.txt"
+if (!(Test-Path -LiteralPath $checksums)) { $checksums = Join-Path $projectRoot 'release/SHA256SUMS.txt' }
 $file = Get-Item -LiteralPath $installer
 if ($file.Length -gt 30000000) { throw 'Installer exceeds the 30 MB limit.' }
 $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -42,10 +43,11 @@ try {
     $upload = $release.upload_url.Split('{')[0]
     foreach ($assetFile in @($installer, $checksums)) {
         $assetInfo = Get-Item -LiteralPath $assetFile
+        $assetName = if ($assetFile -eq $checksums) { 'SHA256SUMS.txt' } else { $assetInfo.Name }
         $assetHash = (Get-FileHash -LiteralPath $assetFile -Algorithm SHA256).Hash.ToLowerInvariant()
-        $asset = $release.assets | Where-Object name -eq $assetInfo.Name | Select-Object -First 1
+        $asset = $release.assets | Where-Object name -eq $assetName | Select-Object -First 1
         if (!$asset) {
-            $asset = Invoke-RestMethod -Method Post -Uri ($upload + '?name=' + [Uri]::EscapeDataString($assetInfo.Name)) -Headers $headers -ContentType 'application/octet-stream' -InFile $assetFile
+            $asset = Invoke-RestMethod -Method Post -Uri ($upload + '?name=' + [Uri]::EscapeDataString($assetName)) -Headers $headers -ContentType 'application/octet-stream' -InFile $assetFile
         }
         if ($asset.size -ne $assetInfo.Length -or $asset.digest -ne "sha256:$assetHash") { throw 'Uploaded asset verification failed.' }
         Write-Output ("Verified {0}: {1} bytes, SHA256 {2}" -f $asset.name, $asset.size, $assetHash)
