@@ -23,6 +23,28 @@ export function timelineInterval(entry, date) {
   return { top, height: Math.min(1440 - top, Math.max(1, position(entry.visibleEnd) - top)) };
 }
 
+export function layoutTimeline(intervals, cardHeights, zoom = 1) {
+  let autoHeight = intervals.length ? 480 : 160;
+  for (let index = 1; index < intervals.length; index++) {
+    const gap = intervals[index].top - intervals[index - 1].top;
+    const spacing = (cardHeights[index - 1] + cardHeights[index]) / 2 + 8;
+    autoHeight = Math.max(autoHeight, gap > 0 ? spacing * 1440 / gap : 2880);
+  }
+  // Very dense cards use individual connectors instead of an unbounded day axis.
+  const axisHeight = Math.round(Math.min(autoHeight, 2880) * zoom);
+  const scale = axisHeight / 1440;
+  let bottom = 0;
+  const cards = intervals.map((interval, index) => {
+    const top = interval.top * scale;
+    const height = Math.min(axisHeight - top, Math.max(1, interval.height * scale));
+    const origin = top + height / 2;
+    const cardTop = Math.max(0, origin - cardHeights[index] / 2, index ? bottom + 8 : 0);
+    bottom = cardTop + cardHeights[index];
+    return { top, height, origin, cardTop, cardCenter: cardTop + cardHeights[index] / 2 };
+  });
+  return { axisHeight, height: Math.max(axisHeight, bottom), cards };
+}
+
 export function historyForDay(state, date, taskId = "", now = Date.now()) {
   const bounds = dayBounds(date);
   return state.sessions.flatMap(session => {
@@ -79,6 +101,13 @@ export function attachHistory({ getState, commit, notify, element }) {
   let layoutKey = "";
   let tasksKey = "";
   let editId = null;
+  let zoom = 1;
+  const colors = ["#527c59", "#4d7f99", "#a17845", "#83709d", "#9d6670", "#4c8982"];
+  const svgElement = (tag, attributes) => {
+    const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    return node;
+  };
   const timeText = value => new Date(value).toLocaleTimeString("zh-CN", { hour12: false, hour: "2-digit", minute: "2-digit" });
   const dayTime = () => new Date(`${selectedDay}T12:00:00`).getTime();
 
@@ -103,74 +132,101 @@ export function attachHistory({ getState, commit, notify, element }) {
       const fragment = document.createDocumentFragment();
       const axis = element("div", "history-axis");
       axis.setAttribute("aria-hidden", "true");
-      for (let hour = 0; hour <= 24; hour += 2) {
-        const tick = element("span", "history-tick", `${String(hour).padStart(2, "0")}:00`);
-        tick.style.top = `${hour * 60}px`;
-        axis.append(tick);
-      }
-      fragment.append(axis);
-      for (const entry of entries) {
+      const connectors = svgElement("svg", { class: "history-connectors", "aria-hidden": "true" });
+      fragment.append(axis, connectors);
+      for (const [index, entry] of entries.entries()) {
+        const color = colors[index % colors.length];
         const segment = element("div", `history-segment${entry.end === null ? " is-running" : ""}`);
+        segment.style.background = color;
         segment.dataset.segment = entry.id;
         segment.title = `${entry.name} · ${timeText(entry.visibleStart)}—${entry.visibleEnd === dayBounds(dayTime()).end ? "24:00" : timeText(entry.visibleEnd)}`;
         segment.setAttribute("aria-hidden", "true");
-        const connector = element("div", "history-connector");
-        connector.dataset.connector = entry.id;
-        connector.setAttribute("aria-hidden", "true");
+        const connector = svgElement("g", { "data-connector": entry.id, stroke: color });
+        connector.append(svgElement("path", { fill: "none", "stroke-width": 1.5 }),
+          svgElement("circle", { r: 3.5, fill: color, stroke: "var(--paper)", "stroke-width": 1 }));
+        connectors.append(connector);
         const row = element("article", "history-row");
+        row.style.setProperty("--record-color", color);
         row.dataset.session = entry.id;
+        row.title = [entry.name, entry.note, entry.crossesDay ? "跨日记录 · 本页只计算当天部分" : "", entry.editedAt ? "已修正" : ""].filter(Boolean).join("\n");
         const time = element("div", "history-time");
         const range = element("span", "", `${timeText(entry.visibleStart)}—${timeText(entry.visibleEnd)}`);
         range.dataset.historyRange = entry.id;
         time.append(range);
-        time.append(element("span", "history-source", entry.end === null ? "进行中" : entry.source === "manual" ? "手动补录" : "专注计时"));
         const info = element("div", "history-info");
         info.append(element("h3", "", entry.name));
-        if (entry.note) info.append(element("p", "", entry.note));
-        if (entry.crossesDay) info.append(element("span", "history-tag", "跨日记录 · 本页只计算当天部分"));
+        info.append(element("span", `history-source${entry.end === null ? " is-running" : ""}`, entry.end === null ? "进行中" : entry.source === "manual" ? "手动补录" : "专注计时"));
+        if (entry.crossesDay) info.append(element("span", "history-tag", "跨日"));
         if (entry.editedAt) info.append(element("span", "history-tag", "已修正"));
+        if (entry.note) {
+          const note = element("span", "history-note", entry.note);
+          note.title = entry.note;
+          info.append(note);
+        }
         const duration = element("strong", "history-duration", minuteDuration(entry.duration));
         duration.dataset.historyDuration = entry.id;
+        time.append(duration);
         const actions = element("div", "history-actions");
         for (const [action, label] of [["edit", "修正"], ["delete", "删除"]]) {
-          const button = element("button", "", label);
+          const button = element("button", "", action === "edit" ? "✎" : "×");
           button.type = "button";
           button.dataset.historyAction = action;
+          button.title = `${label}记录`;
+          button.setAttribute("aria-label", `${label}记录：${entry.name}`);
           button.disabled = entry.end === null;
           actions.append(button);
         }
-        row.append(time, info, duration, actions);
-        fragment.append(connector, segment, row);
+        row.append(time, info, actions);
+        fragment.append(segment, row);
       }
       $("#history-list").replaceChildren(fragment);
     }
-    const nextLayout = JSON.stringify([key, $("#history-list").clientWidth,
+    const nextLayout = JSON.stringify([key, zoom, $("#history-list").clientWidth,
       entries.map(entry => [Math.floor(entry.visibleEnd / 60000), Math.floor(entry.duration / 60000)])]);
     if (layoutKey === nextLayout) return;
     layoutKey = nextLayout;
     const rows = new Map([...$("#history-list").querySelectorAll("[data-session]")].map(node => [node.dataset.session, node]));
     const segments = new Map([...$("#history-list").querySelectorAll("[data-segment]")].map(node => [node.dataset.segment, node]));
     const connectors = new Map([...$("#history-list").querySelectorAll("[data-connector]")].map(node => [node.dataset.connector, node]));
-    let cardBottom = 0;
-    for (const entry of entries) {
+    const layout = layoutTimeline(entries.map(entry => timelineInterval(entry, dayTime())),
+      entries.map(entry => rows.get(entry.id).offsetHeight), zoom);
+    const axis = $("#history-list .history-axis");
+    axis.style.height = `${layout.axisHeight}px`;
+    axis.replaceChildren();
+    const tickStep = layout.axisHeight < 360 ? 12 : layout.axisHeight < 720 ? 6 : layout.axisHeight < 1440 ? 3 : 2;
+    for (let hour = 0; hour <= 24; hour += tickStep) {
+      const tick = element("span", "history-tick", `${String(hour).padStart(2, "0")}:00`);
+      tick.style.top = `${hour / 24 * layout.axisHeight}px`;
+      axis.append(tick);
+    }
+    const svg = $("#history-list .history-connectors");
+    const width = $("#history-list").clientWidth;
+    svg.setAttribute("viewBox", `0 0 ${width} ${layout.height}`);
+    const axisX = axis.offsetLeft + 1;
+    for (const [index, entry] of entries.entries()) {
       const row = rows.get(entry.id);
       if (row) {
         row.querySelector("[data-history-range]").textContent = `${timeText(entry.visibleStart)}—${entry.end === null ? "现在" : entry.visibleEnd === dayBounds(dayTime()).end ? "24:00" : timeText(entry.visibleEnd)}`;
         row.querySelector("[data-history-duration]").textContent = minuteDuration(entry.duration);
-        const { top, height } = timelineInterval(entry, dayTime());
-        const cardTop = Math.max(top, cardBottom);
+        const { top, height, origin, cardTop, cardCenter } = layout.cards[index];
         row.style.top = `${cardTop}px`;
-        cardBottom = cardTop + row.offsetHeight + 10;
         const segment = segments.get(entry.id);
         segment.style.top = `${top}px`;
         segment.style.height = `${height}px`;
         segment.title = `${entry.name} · ${row.querySelector("[data-history-range]").textContent}`;
         const connector = connectors.get(entry.id);
-        connector.style.top = `${top}px`;
-        connector.style.height = `${cardTop - top + 1}px`;
+        const cardX = row.offsetLeft;
+        const midX = (axisX + cardX) / 2;
+        connector.querySelector("path").setAttribute("d", `M ${axisX} ${origin} C ${midX} ${origin}, ${midX} ${cardCenter}, ${cardX} ${cardCenter}`);
+        connector.querySelector("circle").setAttribute("cx", axisX);
+        connector.querySelector("circle").setAttribute("cy", origin);
       }
     }
-    $("#history-list").style.height = `${Math.max(1440, cardBottom)}px`;
+    $("#history-list").style.height = `${layout.height}px`;
+    $("#history-zoom-auto").textContent = zoom === 1 ? "自动" : `${Math.round(zoom * 100)}%`;
+    $("#history-zoom-auto").setAttribute("aria-pressed", String(zoom === 1));
+    $("#history-zoom-out").disabled = zoom <= .25;
+    $("#history-zoom-in").disabled = zoom >= 8;
   }
 
   function openEditor(id = null) {
@@ -203,7 +259,26 @@ export function attachHistory({ getState, commit, notify, element }) {
     });
   }
   $("#history-filter").addEventListener("change", event => { filter = event.target.value; render(getState()); });
+  for (const [id, factor] of [["history-zoom-out", 1 / 1.5], ["history-zoom-in", 1.5], ["history-zoom-auto", 0]]) {
+    $(`#${id}`).addEventListener("click", () => {
+      zoom = factor ? Math.max(.25, Math.min(8, zoom * factor)) : 1;
+      render(getState());
+    });
+  }
   $("#history-add").addEventListener("click", () => openEditor());
+  for (const type of ["pointerover", "pointerout", "focusin", "focusout"]) $("#history-list").addEventListener(type, event => {
+    const target = type.endsWith("out") ? event.relatedTarget : event.target;
+    const row = target instanceof Element ? target.closest(".history-row") : null;
+    const id = row && $("#history-list").contains(row) ? row.dataset.session : null;
+    const svg = $("#history-list .history-connectors");
+    svg?.classList.toggle("is-highlighting", Boolean(id));
+    let highlighted;
+    for (const connector of svg?.children ?? []) {
+      connector.classList.toggle("is-highlighted", connector.dataset.connector === id);
+      if (connector.dataset.connector === id) highlighted = connector;
+    }
+    if (highlighted) svg.append(highlighted);
+  });
   $("#history-list").addEventListener("click", event => {
     const button = event.target.closest("[data-history-action]");
     if (!button) return;

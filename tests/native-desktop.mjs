@@ -103,6 +103,12 @@ try {
   await page.locator("#focus-action").click();
   await page.locator('[data-view="history"]').click();
   assert.ok(await page.locator(".history-row").count() >= 1);
+  assert.ok(await page.locator(".history-row").first().evaluate(node => node.getBoundingClientRect().height) <= 60);
+  const axisHeight = await page.locator(".history-axis").evaluate(node => node.getBoundingClientRect().height);
+  await page.locator("#history-zoom-in").click();
+  assert.ok(Math.abs(await page.locator(".history-axis").evaluate(node => node.getBoundingClientRect().height) - axisHeight * 1.5) < 1);
+  await page.locator("#history-zoom-auto").click();
+  await page.screenshot({ path: path.join(root, "artifacts", `native-history-v${version}.png`), fullPage: true });
   await page.locator('[data-view="focus"]').click();
   await page.locator('[aria-label="开始计时：验证轻量版后台计时"]').click();
   await page.evaluate(() => { void window.desktop.quit(); });

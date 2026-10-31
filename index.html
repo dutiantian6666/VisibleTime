@@ -84,10 +84,10 @@
         </div>
         <section id="history-view" class="history-panel" hidden aria-labelledby="history-title">
           <div class="section-heading"><div><p class="eyebrow">EVERY MOMENT HAS A PLACE</p><h2 id="history-title">你的时间，有迹可循</h2><p id="history-summary" class="history-summary"></p></div><button id="history-add" class="solid-button" type="button">＋ 补录时间</button></div>
-          <div class="history-toolbar"><div class="date-controls"><button id="history-prev" type="button" aria-label="前一天">‹</button><label class="sr-only" for="history-date">查看日期</label><input id="history-date" type="date"><button id="history-next" type="button" aria-label="后一天">›</button><button id="history-today" type="button">今天</button></div><label class="sr-only" for="history-filter">筛选事项</label><select id="history-filter"><option value="">全部事项</option></select></div>
+          <div class="history-toolbar"><div class="date-controls"><button id="history-prev" type="button" aria-label="前一天">‹</button><label class="sr-only" for="history-date">查看日期</label><input id="history-date" type="date"><button id="history-next" type="button" aria-label="后一天">›</button><button id="history-today" type="button">今天</button></div><div class="history-tools"><label class="sr-only" for="history-filter">筛选事项</label><select id="history-filter"><option value="">全部事项</option></select><div class="history-zoom" role="group" aria-label="时间轴缩放"><button id="history-zoom-out" type="button" aria-label="缩短时间轴">−</button><button id="history-zoom-auto" type="button" aria-pressed="true" title="恢复自动缩放">自动</button><button id="history-zoom-in" type="button" aria-label="延长时间轴">＋</button></div></div></div>
           <div id="history-empty" class="history-empty"><span aria-hidden="true">◷</span><h3>这一天，还没有时间足迹</h3><p>开始一次专注，或者补录已经做过的事。</p></div>
           <div id="history-list" class="history-timeline" aria-label="00:00 至 24:00 的全天时间线"></div>
-          <p class="history-footnote">全天一条线，着色部分是已记录的时间，留白是未记录的时间。内容卡片在旁边展开，密集时自动错开；时间显示到分钟，不足 1 分钟单独标注。跨日记录只展示当天部分。</p>
+          <p class="history-footnote">时间轴随记录密度等比伸缩，可用 − / ＋ 调整，点击“自动”恢复。同色圆点与连线对应时间区段和卡片；长备注悬停查看。跨日记录只展示当天部分。</p>
         </section>
         <section id="calendar-view" class="calendar-panel" hidden aria-labelledby="calendar-title">
           <div class="section-heading"><div><p class="eyebrow">A LITTLE SPACE FOR THE DAYS AHEAD</p><h2 id="calendar-title">为重要的事，留出时间</h2><p class="history-summary">计划精确到分钟，实际记录精确到秒。给每一天留一点余地。</p></div><button id="calendar-add" class="solid-button" type="button">＋ 添加计划</button></div>
@@ -115,7 +115,7 @@
         <button id="open-data" type="button" hidden><strong>打开数据文件夹</strong><span id="data-location"></span></button>
       </div>
       <div id="desktop-behavior" class="desktop-behavior" hidden><p>关闭窗口 → 留在托盘，继续计时</p><p>电脑休眠 / 明确退出 → 保存并暂停计时</p><button id="quit-app" type="button">退出软件并暂停计时</button></div>
-      <p id="app-version" class="app-version">VisibleTime 1.4.0 · 网页版</p>
+      <p id="app-version" class="app-version">VisibleTime 1.4.1 · 网页版</p>
     </dialog>
     <dialog id="plan-editor" class="data-dialog" aria-labelledby="plan-editor-title">
       <div class="dialog-heading"><div><p class="eyebrow">MAKE TIME FOR WHAT MATTERS</p><h2 id="plan-editor-title">给时间留一个位置</h2></div><button id="plan-editor-close" class="dialog-close" type="button" aria-label="关闭计划编辑">×</button></div>

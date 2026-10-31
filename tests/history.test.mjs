@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyState, parseState, dailyStats, startTimer } from "../core.js";
-import { saveHistory, deleteHistory, historyForDay, localDate, localInput, minuteDuration, timelineInterval } from "../history.js";
+import { saveHistory, deleteHistory, historyForDay, localDate, localInput, minuteDuration, timelineInterval, layoutTimeline } from "../history.js";
 
 const now = new Date(2026, 9, 28, 14).getTime();
 const start = new Date(2026, 9, 28, 9, 7, 23).getTime();
@@ -17,6 +17,24 @@ test("manual entries preserve exact seconds and create or reuse tasks", () => {
   assert.deepEqual(parseState(JSON.stringify(state)), state);
 });
 
+test("timeline shrinks on empty days, scales uniformly, and keeps dense cards separate with exact origins", () => {
+  const empty = layoutTimeline([], []);
+  const sparseIntervals = [{ top: 540, height: 60 }, { top: 720, height: 60 }];
+  const sparse = layoutTimeline(sparseIntervals, [57, 57]);
+  const dense = layoutTimeline([{ top: 540, height: 1 }, { top: 541, height: 1 }], [57, 57]);
+  assert.ok(empty.axisHeight < sparse.axisHeight);
+  assert.ok(sparse.axisHeight < dense.axisHeight);
+  assert.ok(dense.cards[1].cardTop >= dense.cards[0].cardTop + 57 + 8);
+  const zoomed = layoutTimeline(sparseIntervals, [57, 57], 2);
+  assert.equal(zoomed.axisHeight, sparse.axisHeight * 2);
+  for (const [index, card] of sparse.cards.entries()) {
+    assert.ok(Math.abs(zoomed.cards[index].origin - card.origin * 2) < 1e-9);
+    assert.ok(Math.abs(card.top / sparse.axisHeight - sparseIntervals[index].top / 1440) < 1e-9);
+    assert.ok(Math.abs(card.cardCenter - card.origin) < 1e-9);
+  }
+  assert.equal(dense.cards[1].origin, (541.5 / 1440) * dense.axisHeight);
+  assert.ok(dense.cards[1].cardCenter > dense.cards[1].origin);
+});
 
 test("edits update statistics and retain the first original interval", () => {
   let state = saveHistory(emptyState(), input, now);
